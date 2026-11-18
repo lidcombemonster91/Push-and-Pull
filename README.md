@@ -4,8 +4,8 @@
 
 ```bash
 npm run serve        # http://localhost:4173  (아무 정적 서버나 가능, 예: python3 -m http.server)
-npm test             # 순수 로직 단위 테스트 (14)
-npm run e2e          # Playwright로 iPhone 뷰포트에서 실제 앱 조작 (68 체크)
+npm test             # 순수 로직 단위 테스트 (16)
+npm run e2e          # Playwright로 iPhone 뷰포트에서 실제 앱 조작 (76 체크, `npm i -D playwright` 필요)
 ```
 iPhone: Safari에서 열기 → 공유 → **홈 화면에 추가**. 오프라인 동작(Service Worker).
 
@@ -36,8 +36,14 @@ S = { schema, settings, meta,
 * **중량 기준(`mode`)**: `perHand`(덤벨 개당, 볼륨 ×2) · `total`(바벨 총중량) · `machine`(머신 표시값) · `bodyweight`(+추가 중량).
 * 모든 항목이 UUID + `updatedAt`을 가지므로 추후 클라우드 동기화(id 단위 병합)·AI 기능 추가가 쉽습니다.
 
+## 배포 (GitHub Pages)
+`main`에 푸시하면 `.github/workflows/pages.yml`이 단위 테스트 후 앱 파일만 배포합니다. **저장소 Settings → Pages → Source를 `GitHub Actions`로 한 번 설정**해야 합니다. 배포 후 Safari에서 열어 홈 화면에 추가하세요. 코드를 바꾸면 `sw.js`의 `VERSION`을 올려야 설치된 앱이 새 파일을 받습니다.
+
+## 실기기 점검
+`docs/DEVICE-TEST.md` — 잠금 화면 타이머, 설치, 오프라인 등 자동 테스트로 확인할 수 없는 22개 항목.
+
 ## 점진적 과부하 규칙 (`logic.suggest`)
-같은 `exerciseId` **그리고** 같은 `mode`의 직전 완료 기록만 사용(다른 운동·기구 간 비교 없음).
+같은 `exerciseId` **그리고** 같은 `mode`의 직전 완료 기록만 사용(다른 운동·기구 간 비교 없음). 운동마다 방식 선택(운동 정보 편집): **엄격**(기본: 모든 세트 상한) · **평균**(첫 세트 상한 + 평균 ≥ 상한−1) · **수동**(제안 없음).
 1. 모든 작업 세트가 반복 상한 달성 + RIR ≥ 목표−1 + "자세 흔들림" 미체크 → **증량 제안**(+운동별 증량 단위)
 2. 상한 달성했지만 RIR이 낮거나 자세 흔들림 → 유지
 3. 하한 미달 → 유지, 2회 연속 미달 → **감량 제안**
@@ -50,4 +56,6 @@ S = { schema, settings, meta,
 ## 구현 범위
 * **Phase 1 완료**: 루틴 CRUD/순서/교체/커스텀 운동, 실시간 세트 기록(지난 기록 기본값, 워밍업, 건너뛰기, 순서 변경, 완료 취소), 휴식 타이머, 자세 가이드, 세션 복구, JSON/CSV, 오프라인.
 * **Phase 2 일부 포함**: 성장 그래프(1·3·6개월/전체), 증량 제안, 대체 운동, 컨디션·만족도·통증 기록, PR 표시, 플레이트 계산기, 캘린더, 시간 제한 루틴 조정.
+* **회복 제안**(`logic.recoveryAdvice`): 3일 연속 운동 → 휴식, 피로/컨디션 불량 반복·6주 연속·만족도 저조 → 디로드. Today 화면에 힌트로만 표시.
+* 세트별 휴식 조정(−15/+15), 슈퍼세트(운동 순서에서 ↔로 묶기).
 * Phase 3(고급 분석·개인화 추천·클라우드)는 미구현 — 데이터 구조만 대비.

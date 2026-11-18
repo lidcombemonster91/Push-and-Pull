@@ -67,7 +67,7 @@ async function wakeLock(on) {
 
 // ================= session engine =================
 function snapOf(ex, cfg) {
-  return { name: ex.name, ko: ex.ko, mode: ex.mode, primary: [...ex.primary], secondary: [...(ex.secondary || [])], repMin: cfg.repMin, repMax: cfg.repMax, rir: cfg.rir, rest: cfg.rest, inc: ex.inc };
+  return { name: ex.name, ko: ex.ko, mode: ex.mode, primary: [...ex.primary], secondary: [...(ex.secondary || [])], repMin: cfg.repMin, repMax: cfg.repMax, rir: cfg.rir, rest: cfg.rest, inc: ex.inc, rule: ex.rule || 'strict' };
 }
 const lastHist = (exerciseId, mode) => L.history(S.sessions, exerciseId, mode, S.activeId);
 
@@ -120,9 +120,10 @@ function prevFor(ex, idx) {
 }
 function suggestionFor(ex) {
   const h = lastHist(ex.exerciseId, ex.snap.mode);
-  return L.suggest(h, { repMin: ex.snap.repMin, repMax: ex.snap.repMax, rir: ex.snap.rir, inc: ex.snap.inc });
+  return L.suggest(h, { repMin: ex.snap.repMin, repMax: ex.snap.repMax, rir: ex.snap.rir, inc: ex.snap.inc }, ex.snap.rule || 'strict');
 }
 
+const restFor = (ex, st) => (Number.isFinite(st.rest) ? st.rest : st.type === 'warmup' ? Math.min(ex.snap.rest, S.settings.warmupRest) : ex.snap.rest);
 function completeSet(ex, idx) {
   const st = ex.sets[idx], sess = active();
   const bw = ex.snap.mode === 'bodyweight';
@@ -136,8 +137,14 @@ function completeSet(ex, idx) {
     for (const o of sess.exercises) if (o.exerciseId === ex.exerciseId) for (const s of o.sets) if (s !== st && s.done && s.type === 'work') { maxW = Math.max(maxW, s.weight || 0); best1 = Math.max(best1, L.e1rm(s.weight, s.reps)); }
     if (b.any && st.weight > 0 && (st.weight > maxW || L.e1rm(st.weight, st.reps) > best1)) { st.pr = true; toast('개인 최고 기록 달성!', 'pr'); buzz([40, 60, 40]); }
   }
-  const rest = st.type === 'warmup' ? Math.min(ex.snap.rest, S.settings.warmupRest) : ex.snap.rest;
-  timer.start(rest, ex.snap.ko);
+  const rest = restFor(ex, st);
+  // Superset: no rest between the two linked exercises; rest only after the second one.
+  const sess2 = active(), i = sess2.exercises.indexOf(ex);
+  const first = !!ex.link, pIdx = first ? i + 1 : sess2.exercises[i - 1]?.link ? i - 1 : -1;
+  const partner = sess2.exercises[pIdx];
+  const pending = partner && !partner.skipped && partner.sets.some((x) => x.done === false);
+  if (first && pending) { sess2.curEx = pIdx; toast('슈퍼세트 · 바로 다음 운동으로'); }
+  else { timer.start(rest, ex.snap.ko); if (pending) sess2.curEx = pIdx; }
   ui.setIdx = null; ui.focusPanel = true;
   save(); render();
 }
@@ -193,6 +200,7 @@ function todayView() {
   const d = new Date();
   return `<header class="top"><div><h1>${d.getMonth() + 1}월 ${d.getDate()}일</h1><p class="mu">${DAYS[(d.getDay() + 6) % 7]}요일</p></div></header>
   ${a ? `<section class="card resume"><div><b>진행 중인 운동</b><p class="mu">${esc(a.routineName)} · ${doneSets(a)}/${totalSets(a)}세트 · ${fmtClock(a.startedAt)} 시작</p></div><button class="btn primary" data-a="resume">이어하기</button></section>` : ''}
+  ${L.recoveryAdvice(S.sessions).map((r) => `<div class="advice ${r.level}"><b>${r.level === 'rest' ? '휴식 제안' : '디로드 제안'}</b><p>${esc(r.msg)}</p></div>`).join('')}
   <section class="week">
     <div><span class="big">${week.length}</span><span class="mu">이번 주 운동</span></div>
     <div><span class="big">${wk.s}</span><span class="mu">완료 세트</span></div>
@@ -223,14 +231,14 @@ function workoutView() {
     <div class="wtitle"><b>${esc(s.routineName)}</b><span class="mu" id="elapsed">${fmtTime((Date.now() - s.startedAt) / 1000)}</span></div>
     <button class="btn small" data-a="openFinish">종료</button></header>
   <div class="prog"><i style="width:${pct}%"></i></div>
-  <div class="strip" role="tablist">${s.exercises.map((e, i) => { const d = e.sets.filter((x) => x.done).length; const cls = e.skipped ? 'skip' : d === e.sets.length && d ? 'full' : d ? 'part' : ''; return `<button class="chip ${i === ci ? 'on' : ''} ${cls}" data-a="selEx" data-id="${i}">${i + 1}</button>`; }).join('')}
+  <div class="strip" role="tablist">${s.exercises.map((e, i) => { const d = e.sets.filter((x) => x.done).length; const cls = e.skipped ? 'skip' : d === e.sets.length && d ? 'full' : d ? 'part' : ''; return `<button class="chip ${i === ci ? 'on' : ''} ${cls} ${e.link ? 'lnk' : ''}" data-a="selEx" data-id="${i}">${i + 1}</button>`; }).join('')}
     <button class="chip" data-a="openExList" aria-label="운동 순서/추가">${icon('list')}</button></div>
   <section class="ex">
     <div class="exhead"><h2>${snapName(ex.snap)}</h2>
       <p class="mu">${ex.snap.primary.map(esc).join(', ')}${ex.snap.secondary.length ? ` <span class="dim">· ${ex.snap.secondary.map(esc).join(', ')}</span>` : ''}</p>
       <p class="target">${ex.sets.filter((x) => x.type === 'work').length}세트 × ${range(ex.snap)}회 · RIR ${ex.snap.rir} · 휴식 ${ex.snap.rest}초 <span class="tag">${MODES[ex.snap.mode]}</span></p></div>
     ${ex.skipped ? `<div class="card center"><p class="mu">이 운동은 건너뛰었습니다.</p><button class="btn" data-a="unskip">건너뛰기 취소</button></div>` : `
-    ${sug ? `<div class="sug ${sug.type}"><div><b>${sug.type === 'increase' ? '증량 제안' : sug.type === 'reduce' ? '중량 조정 제안' : '이번엔 유지'}</b><p>${esc(sug.msg)}</p></div>${sug.type !== 'hold' ? `<button class="btn small" data-a="applySug">${ex.sugApplied ? '적용됨' : '적용'}</button>` : ''}</div>` : `<p class="mu small nohist">${anyHistOtherMode ? '운동 방식(중량 기준)이 바뀌어 지난 기록과 비교하지 않습니다.' : '지난 기록이 없습니다. 중량을 직접 입력하면 다음 운동부터 기준이 됩니다.'}</p>`}
+    ${sug ? `<div class="sug ${sug.type}"><div><b>${sug.type === 'increase' ? '증량 제안' : sug.type === 'reduce' ? '중량 조정 제안' : sug.type === 'manual' ? '수동 모드' : '이번엔 유지'}</b><p>${esc(sug.msg)}</p></div>${sug.type === 'increase' || sug.type === 'reduce' ? `<button class="btn small" data-a="applySug">${ex.sugApplied ? '적용됨' : '적용'}</button>` : ''}</div>` : `<p class="mu small nohist">${anyHistOtherMode ? '운동 방식(중량 기준)이 바뀌어 지난 기록과 비교하지 않습니다.' : '지난 기록이 없습니다. 중량을 직접 입력하면 다음 운동부터 기준이 됩니다.'}</p>`}
     <div class="sets">${ex.sets.map((st, i) => setRow(ex, st, i, sel)).join('')}</div>
     ${sel >= 0 ? setPanel(ex, sel) : `<div class="card center"><p><b>모든 세트 완료</b></p>${s.exercises.some((e, i) => i > ci && !e.skipped && e.sets.some((x) => !x.done)) ? '<button class="btn primary big" data-a="nextEx">다음 운동</button>' : '<button class="btn primary big" data-a="openFinish">운동 마무리</button>'}</div>`}
     <div class="tools">
@@ -282,7 +290,7 @@ function setPanel(ex, idx) {
       <label class="val"><input data-c="rInput" inputmode="numeric" value="${st.reps ?? ''}" aria-label="반복수"><span>회</span></label>
       <button class="step" data-a="rStep" data-id="1" aria-label="반복 증가">${icon('plus')}</button></div>
     <div class="rir"><span class="mu">RIR</span>${[0, 1, 2, 3, 4].map((v) => `<button class="chip ${st.rir === v ? 'on' : ''}" data-a="setRir" data-id="${v}">${v === 4 ? '4+' : v}</button>`).join('')}</div>
-    ${st.done ? `<button class="btn big" data-a="uncomplete">완료 취소</button>` : `<button class="btn primary big" data-a="complete">세트 완료 · 휴식 ${st.type === 'warmup' ? Math.min(ex.snap.rest, S.settings.warmupRest) : ex.snap.rest}초</button>`}
+    ${st.done ? `<button class="btn big" data-a="uncomplete">완료 취소</button>` : `<div class="restrow"><span class="mu">이 세트 휴식</span><button class="chip" data-a="restAdj" data-id="-15" aria-label="휴식 15초 감소">−15</button><b>${restFor(ex, st)}초</b><button class="chip" data-a="restAdj" data-id="15" aria-label="휴식 15초 증가">+15</button></div><button class="btn primary big" data-a="complete">${ex.link || active().exercises[active().exercises.indexOf(ex) - 1]?.link ? '세트 완료 · 슈퍼세트' : '세트 완료'}</button>`}
     <p class="mu small center">증감 단위 ${fmtNum(step)}kg · 운동 정보에서 변경</p></div>`;
 }
 
@@ -402,7 +410,9 @@ function lineChart(pts, key, unit) {
 function progressView() {
   const sessions = L.inPeriod(S.sessions, ui.period);
   const allDone = finished();
-  const exIds = [...new Set(allDone.flatMap((s) => s.exercises.filter((e) => !e.skipped).map((e) => e.exerciseId)))];
+  const counts = {};
+  for (const s of allDone) for (const e of s.exercises) if (!e.skipped && e.sets.length) counts[e.exerciseId] = (counts[e.exerciseId] || 0) + 1;
+  const exIds = Object.keys(counts).sort((a, b) => counts[b] - counts[a]); // most-logged first
   if (!ui.progEx || !exIds.includes(ui.progEx)) ui.progEx = exIds[0] || null;
   const label = (id) => S.exercises[id]?.ko || allDone.flatMap((s) => s.exercises).find((e) => e.exerciseId === id)?.snap.ko || id;
   const total = sessions.reduce((a, s) => { const t = L.sessionStats(s, S.settings.bodyweight); a.v += t.volume; a.s += t.sets; a.d += t.durationSec; return a; }, { v: 0, s: 0, d: 0 });
@@ -501,8 +511,8 @@ const SHEETS = {
   },
   exlist() {
     const s = active();
-    return `<h3>운동 순서</h3><div class="list">${s.exercises.map((e, i) => `<div class="row item"><div class="grow" data-a="jumpEx" data-id="${i}"><b>${i + 1}. ${snapName(e.snap)}</b><p class="mu small">${e.skipped ? '건너뜀' : `${e.sets.filter((x) => x.done).length}/${e.sets.length}세트`}</p></div>
-      <div class="mv"><button data-a="moveEx" data-id="${i}" data-d="-1" ${i === 0 ? 'disabled' : ''} aria-label="위로">${icon('up')}</button><button data-a="moveEx" data-id="${i}" data-d="1" ${i === s.exercises.length - 1 ? 'disabled' : ''} aria-label="아래로">${icon('down')}</button></div></div>`).join('')}</div>
+    return `<h3>운동 순서</h3><p class="mu small">↔ 버튼으로 바로 다음 운동과 슈퍼세트를 묶으면 두 운동을 번갈아 하고 휴식은 둘째 운동 뒤에만 시작해요.</p><div class="list" style="margin-top:10px">${s.exercises.map((e, i) => `<div class="row item"><div class="grow" data-a="jumpEx" data-id="${i}"><b>${i + 1}. ${snapName(e.snap)}</b><p class="mu small">${e.skipped ? '건너뜀' : `${e.sets.filter((x) => x.done).length}/${e.sets.length}세트`}${e.link ? ' · 슈퍼세트 ↔ 다음' : ''}</p></div>
+      <div class="mv">${i < s.exercises.length - 1 ? `<button class="lk ${e.link ? 'on' : ''}" data-a="linkEx" data-id="${i}" aria-label="다음 운동과 슈퍼세트" aria-pressed="${!!e.link}">${icon('swap')}</button>` : ''}<button data-a="moveEx" data-id="${i}" data-d="-1" ${i === 0 ? 'disabled' : ''} aria-label="위로">${icon('up')}</button><button data-a="moveEx" data-id="${i}" data-d="1" ${i === s.exercises.length - 1 ? 'disabled' : ''} aria-label="아래로">${icon('down')}</button></div></div>`).join('')}</div>
     <button class="btn big" data-a="addToSession">${icon('plus')} 운동 추가</button>`;
   },
   alt(sh) {
@@ -555,6 +565,7 @@ const SHEETS = {
     <div class="grid2"><label class="field">기본 세트<input id="xSets" inputmode="numeric" value="${e.sets}"></label><label class="field">휴식(초)<input id="xRest" inputmode="numeric" value="${e.rest}"></label>
     <label class="field">반복 최소<input id="xMin" inputmode="numeric" value="${e.repMin}"></label><label class="field">반복 최대<input id="xMax" inputmode="numeric" value="${e.repMax}"></label>
     <label class="field">목표 RIR<input id="xRir" inputmode="numeric" value="${e.rir}"></label><label class="field">증량 단위(kg)<input id="xInc" inputmode="decimal" value="${e.inc}"></label></div>
+    <label class="field">증량 제안 방식${sel('xRule', Object.entries(L.RULES), e.rule || 'strict')}</label>
     ${[['xSetup', '기구 세팅 방법', 'setup'], ['xForm', '올바른 자세', 'form'], ['xBreath', '호흡법', 'breath'], ['xTempo', '반복 속도', 'tempo'], ['xMis', '자주 발생하는 실수', 'mistakes']].map(([id, n, k]) => `<label class="field">${n}<textarea id="${id}" rows="2">${esc(e[k] || '')}</textarea></label>`).join('')}
     <label class="lab">대체 운동</label><div class="chips wrap">${(e.alts || []).map((id) => `<button type="button" class="chip on" data-a="rmAlt" data-id="${esc(id)}">${esc(S.exercises[id]?.ko || id)} ✕</button>`).join('')}<button type="button" class="chip" data-a="addAlt">${icon('plus')}</button></div>
     <button class="btn primary big" data-a="saveEx">저장</button>${!e.isNew && e.custom ? '<button class="btn big danger" data-a="delEx">이 운동 삭제</button>' : ''}`;
@@ -585,7 +596,7 @@ const confirmSheet = (title, msg, ok, run, danger = true) => { ui.sheet = { type
 // ================= Actions =================
 const cur = () => { const s = active(); return s ? s.exercises[clamp(s.curEx, 0, s.exercises.length - 1)] : null; };
 function blankExercise() {
-  return { isNew: true, id: 'c-' + uid(), custom: true, name: '', ko: '', primary: [], secondary: [], equipment: '덤벨', mode: 'total', sets: 3, repMin: 8, repMax: 12, rir: 2, rest: 90, inc: 2.5, setup: '', form: '', breath: '', tempo: '', mistakes: '', alts: [] };
+  return { isNew: true, id: 'c-' + uid(), custom: true, name: '', ko: '', primary: [], secondary: [], equipment: '덤벨', mode: 'total', sets: 3, repMin: 8, repMax: 12, rir: 2, rest: 90, inc: 2.5, rule: 'strict', setup: '', form: '', breath: '', tempo: '', mistakes: '', alts: [] };
 }
 function readMuscles(id) { return [...document.querySelectorAll(`#${id} .chip.on`)].map((b) => b.dataset.m); }
 function pickerReturn(exId) {
@@ -614,14 +625,14 @@ function replaceCurrent(newId) {
   const s = active(), i = s.curEx, old = s.exercises[i], ex = S.exercises[newId];
   if (!ex) return;
   const fresh = buildExercise(newId, { sets: old.sets.filter((x) => x.type === 'work').length || ex.sets, repMin: ex.repMin, repMax: ex.repMax, rir: ex.rir, rest: ex.rest });
-  if (old.sets.some((x) => x.done)) { s.exercises.splice(i + 1, 0, fresh); s.curEx = i + 1; fresh.replacedFrom = old.exerciseId; }
+  if (old.sets.some((x) => x.done)) { old.link = false; s.exercises.splice(i + 1, 0, fresh); s.curEx = i + 1; fresh.replacedFrom = old.exerciseId; }
   else { s.exercises[i] = fresh; fresh.replacedFrom = old.exerciseId; }
   ui.setIdx = null; closeSheet(); save(); render(); toast(`${ex.ko}(으)로 변경`);
 }
 function saveExerciseFromSheet() {
   const sh = ui.sheet, e = sh.ex, g = (id) => document.getElementById(id).value.trim();
   const out = { ...e, ko: g('xKo'), name: g('xName'), equipment: g('xEq'), mode: g('xMode'), primary: readMuscles('xP'), secondary: readMuscles('xS'),
-    sets: Math.round(num(g('xSets'))), rest: Math.round(num(g('xRest'))), repMin: Math.round(num(g('xMin'))), repMax: Math.round(num(g('xMax'))), rir: Math.round(num(g('xRir'))), inc: num(g('xInc')),
+    sets: Math.round(num(g('xSets'))), rest: Math.round(num(g('xRest'))), repMin: Math.round(num(g('xMin'))), repMax: Math.round(num(g('xMax'))), rir: Math.round(num(g('xRir'))), inc: num(g('xInc')), rule: g('xRule') || 'strict',
     setup: g('xSetup'), form: g('xForm'), breath: g('xBreath'), tempo: g('xTempo'), mistakes: g('xMis') };
   if (!out.ko && !out.name) return toast('운동 이름을 입력하세요', 'bad');
   if (!out.ko) out.ko = out.name; if (!out.name) out.name = out.ko;
@@ -651,6 +662,8 @@ const A = {
   rStep: (id) => { const ex = cur(), st = ex.sets[selectedSet(ex)]; st.reps = clamp((st.reps || 0) + +id, 0, 100); save(); render(); },
   setRir: (id) => { const ex = cur(), st = ex.sets[selectedSet(ex)]; st.rir = +id; save(); render(); },
   complete: () => { const ex = cur(); completeSet(ex, selectedSet(ex)); },
+  restAdj: (id) => { const ex = cur(), st = ex.sets[selectedSet(ex)]; st.rest = clamp(restFor(ex, st) + +id, 0, 900); save(); render(); },
+  linkEx: (id) => { const s = active(), i = +id; if (s.exercises[i + 1]) { s.exercises[i].link = !s.exercises[i].link; if (s.exercises[i].link && s.exercises[i + 1]) s.exercises[i + 1].link = false; if (s.exercises[i].link && s.exercises[i - 1]) s.exercises[i - 1].link = false; save(); renderSheet(); render(); } },
   uncomplete: () => { const ex = cur(), st = ex.sets[selectedSet(ex)]; st.done = false; st.pr = false; delete st.doneAt; save(); render(); },
   addSet: () => { const ex = cur(), l = ex.sets[ex.sets.length - 1]; ex.sets.push(newSet('work', l ? l.weight : null, l ? l.reps : ex.snap.repMin, l ? l.rir : ex.snap.rir)); ui.setIdx = ex.sets.length - 1; save(); render(); },
   delSet: () => {
@@ -661,7 +674,7 @@ const A = {
   },
   toggleWarm: () => { const ex = cur(), st = ex.sets[selectedSet(ex)]; if (st.done) return toast('완료 취소 후 변경하세요', 'bad'); st.type = st.type === 'warmup' ? 'work' : 'warmup'; save(); render(); },
   applySug: () => {
-    const ex = cur(), sug = suggestionFor(ex); if (!sug || sug.type === 'hold') return;
+    const ex = cur(), sug = suggestionFor(ex); if (!sug || (sug.type !== 'increase' && sug.type !== 'reduce')) return;
     const h = lastHist(ex.exerciseId, ex.snap.mode)[0], pw = L.doneWork(h);
     let k = 0;
     for (const st of ex.sets) if (st.type === 'work') { if (!st.done) st.weight = Math.max(0, L.round025(pw[Math.min(k, pw.length - 1)].weight + sug.delta)); k++; }
@@ -670,7 +683,7 @@ const A = {
   skipEx: () => { const ex = cur(); const go = () => { ex.skipped = true; ui.setIdx = null; save(); closeSheet(); A.nextEx(); }; if (ex.sets.some((s) => s.done)) confirmSheet('운동을 건너뛸까요?', '이미 완료한 세트는 기록에 남습니다.', '건너뛰기', go, false); else go(); },
   unskip: () => { cur().skipped = false; save(); render(); },
   openExList: () => { ui.sheet = { type: 'exlist' }; renderSheet(); },
-  moveEx: (id, el) => { const s = active(), i = +id, d = +el.dataset.d, j = i + d; if (j < 0 || j >= s.exercises.length) return; const curId = s.exercises[s.curEx].id; [s.exercises[i], s.exercises[j]] = [s.exercises[j], s.exercises[i]]; s.curEx = s.exercises.findIndex((e) => e.id === curId); save(); renderSheet(); render(); },
+  moveEx: (id, el) => { const s = active(), i = +id, d = +el.dataset.d, j = i + d; if (j < 0 || j >= s.exercises.length) return; const curId = s.exercises[s.curEx].id; for (const k of [i - 1, i, j - 1, j]) if (s.exercises[k]) s.exercises[k].link = false; [s.exercises[i], s.exercises[j]] = [s.exercises[j], s.exercises[i]]; s.curEx = s.exercises.findIndex((e) => e.id === curId); save(); renderSheet(); render(); },
   addToSession: () => { ui.pickCtx = 'session-add'; ui.sheet = { type: 'picker', q: '' }; renderSheet(); },
   openAlt: () => { ui.sheet = { type: 'alt' }; renderSheet(); },
   replaceWith: (id) => { const ex = cur(); if (ex.sets.some((s) => s.done)) confirmSheet('대체 운동으로 바꿀까요?', '이미 완료한 세트가 있어 기존 운동은 유지하고, 선택한 운동을 바로 다음에 추가합니다.', '추가', () => replaceCurrent(id), false); else replaceCurrent(id); },
@@ -733,7 +746,7 @@ function snapshotForm() {
   const g = (id) => document.getElementById(id)?.value ?? '';
   if (!document.getElementById('xKo')) return {};
   const n = (id) => { const v = num(g(id)); return Number.isFinite(v) ? v : g(id); };
-  return { ko: g('xKo'), name: g('xName'), equipment: g('xEq'), mode: g('xMode'), primary: readMuscles('xP'), secondary: readMuscles('xS'), sets: n('xSets'), rest: n('xRest'), repMin: n('xMin'), repMax: n('xMax'), rir: n('xRir'), inc: n('xInc'), setup: g('xSetup'), form: g('xForm'), breath: g('xBreath'), tempo: g('xTempo'), mistakes: g('xMis') };
+  return { ko: g('xKo'), name: g('xName'), equipment: g('xEq'), mode: g('xMode'), primary: readMuscles('xP'), secondary: readMuscles('xS'), sets: n('xSets'), rest: n('xRest'), repMin: n('xMin'), repMax: n('xMax'), rir: n('xRir'), inc: n('xInc'), rule: g('xRule'), setup: g('xSetup'), form: g('xForm'), breath: g('xBreath'), tempo: g('xTempo'), mistakes: g('xMis') };
 }
 function moveItem(i, d) { const r = S.routines[ui.routineId], j = i + d; if (j < 0 || j >= r.items.length) return; [r.items[i], r.items[j]] = [r.items[j], r.items[i]]; r.updatedAt = Date.now(); save(); render(); }
 function download(text, name, type) {

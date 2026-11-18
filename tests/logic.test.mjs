@@ -136,3 +136,31 @@ test('default library sanity: every exercise complete, alternatives resolve', ()
     e.alts.forEach((a) => assert.ok(ids.has(a), `${e.id} alt ${a}`));
   }
 });
+
+test('suggest: per-exercise rule (strict / average / manual)', () => {
+  const h = [mkSess('a', 1, 'e', [mkSet(20, 10), mkSet(20, 9), mkSet(20, 9)]).exercises[0]];
+  assert.equal(L.suggest(h, T, 'strict').type, 'hold');
+  const avg = L.suggest(h, T, 'average');
+  assert.equal(avg.type, 'increase'); assert.equal(avg.to, 22.5);
+  const low = [mkSess('a', 1, 'e', [mkSet(20, 9), mkSet(20, 10), mkSet(20, 10)]).exercises[0]];
+  assert.equal(L.suggest(low, T, 'average').type, 'hold', 'average rule needs the FIRST set at the top');
+  assert.equal(L.suggest(h, T, 'manual').type, 'manual');
+  assert.equal(L.suggest([], T, 'manual'), null);
+  assert.equal(L.suggest(h, T).type, 'hold', 'default rule is strict');
+});
+
+test('recoveryAdvice: rest after 3 straight days, deload on fatigue / 6 weeks / low satisfaction, quiet otherwise', () => {
+  const now = new Date(2026, 10, 18, 12).getTime(), D = 86400000;
+  const s = (ago, pre, post) => ({ ...mkSess('x' + ago + Math.random(), now - ago * D, 'e', [mkSet(20, 8)]), pre, post });
+  assert.deepEqual(L.recoveryAdvice([], now), []);
+  assert.deepEqual(L.recoveryAdvice([s(5, { condition: 4, fatigue: 2 })], now), []);
+  const rest = L.recoveryAdvice([s(1), s(2), s(3)], now);
+  assert.equal(rest[0].level, 'rest');
+  assert.equal(L.recoveryAdvice([s(0), s(1), s(2)], now).some((a) => a.level === 'rest'), false, 'already trained today -> no rest nag');
+  const tired = L.recoveryAdvice([s(2, { condition: 2, fatigue: 5 }), s(5, { condition: 3, fatigue: 4 }), s(8, { condition: 4, fatigue: 1 })], now);
+  assert.equal(tired[0].level, 'deload');
+  const six = [0, 8, 15, 22, 29, 36].map((d) => s(d + 1, { condition: 4, fatigue: 2 }));
+  assert.equal(L.recoveryAdvice(six, now).filter((a) => a.level === 'deload').length, 1);
+  const meh = [s(2, null, { satisfaction: 2 }), s(9, null, { satisfaction: 1 }), s(16, null, { satisfaction: 2 })];
+  assert.equal(L.recoveryAdvice(meh, now)[0].level, 'deload');
+});

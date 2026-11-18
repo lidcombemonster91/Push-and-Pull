@@ -63,18 +63,22 @@ export function history(sessions, exerciseId, mode, excludeId) {
  * Rule-based progressive-overload suggestion. Never mutates anything.
  * hist: history() result. target: {repMin, repMax, rir, inc}
  */
-export function suggest(hist, target) {
+export const RULES = { strict: '엄격 (모든 세트 상한)', average: '평균 (첫 세트 상한 + 평균)', manual: '수동 (제안 안 함)' };
+export function suggest(hist, target, rule = 'strict') {
   if (!hist.length) return null;
+  if (rule === 'manual') return { type: 'manual', delta: 0, msg: '수동 모드: 이 운동은 증량 제안을 하지 않습니다.' };
   const last = hist[0], ws = doneWork(last);
   const top = Math.max(...ws.map((s) => s.weight));
   const minRir = Math.max(0, (target.rir ?? 2) - 1);
-  const allTop = ws.every((s) => s.reps >= target.repMax);
+  const allTop = rule === 'average'
+    ? ws[0].reps >= target.repMax && ws.reduce((a, x) => a + x.reps, 0) / ws.length >= target.repMax - 1
+    : ws.every((s) => s.reps >= target.repMax);
   const rirOk = ws.every((s) => s.rir == null || s.rir >= minRir);
   const form = !last.formBreak;
   if (allTop && rirOk && form) {
     const delta = target.inc;
     return { type: 'increase', delta, to: round025(top + delta), from: top,
-      msg: `모든 세트가 ${target.repMax}회 달성 · RIR 양호 → ${fmtNum(top + delta)}kg로 증가 제안` };
+      msg: `${rule === 'average' ? '첫 세트 ' + target.repMax + '회 · 평균 양호' : '모든 세트 ' + target.repMax + '회 달성'} · RIR 양호 → ${fmtNum(top + delta)}kg로 증가 제안` };
   }
   if (allTop && (!rirOk || !form)) {
     return { type: 'hold', delta: 0, to: top, from: top,
@@ -213,4 +217,27 @@ export function validateBackup(o) {
     for (const e of s.exercises) if (!e || !e.snap || !Array.isArray(e.sets)) return '운동 기록 중 손상된 항목이 있습니다.';
   }
   return null;
+}
+
+/**
+ * Rule-based recovery advice from recent sessions. Returns [{level:'rest'|'deload', msg}] (empty = nothing to flag).
+ * Never changes data; shown as a hint on the Today screen.
+ */
+export function recoveryAdvice(sessions, now = Date.now()) {
+  const done = sessions.filter((s) => s.status === 'done').sort((a, b) => b.startedAt - a.startedAt);
+  const out = [];
+  if (!done.length) return out;
+  const day = 86400000;
+  const days = new Set(done.filter((s) => s.startedAt >= now - 3 * day).map((s) => ymd(s.startedAt)));
+  if (days.size >= 3 && days.has(ymd(now)) === false) out.push({ level: 'rest', msg: '최근 3일 연속 운동했어요. 오늘은 휴식도 좋은 선택이에요.' });
+  const last3 = done.slice(0, 3).filter((s) => s.pre);
+  if (last3.length >= 2 && last3.filter((s) => s.pre.fatigue >= 4 || s.pre.condition <= 2).length >= 2)
+    out.push({ level: 'deload', msg: '최근 운동에서 피로가 높거나 컨디션이 낮았어요. 이번엔 세트·중량을 줄인 디로드를 고려하세요.' });
+  const weeks = new Set(done.filter((s) => s.startedAt >= now - 42 * day).map((s) => weekStart(s.startedAt)));
+  if (weeks.size >= 6 && !out.some((o) => o.level === 'deload'))
+    out.push({ level: 'deload', msg: '6주 연속으로 운동했어요. 가볍게 가는 디로드 주를 고려해 보세요.' });
+  const sat = done.slice(0, 3).filter((s) => s.post?.satisfaction);
+  if (sat.length === 3 && sat.every((s) => s.post.satisfaction <= 2) && !out.length)
+    out.push({ level: 'deload', msg: '최근 3회 만족도가 낮았어요. 루틴이나 강도를 점검해 보세요.' });
+  return out;
 }

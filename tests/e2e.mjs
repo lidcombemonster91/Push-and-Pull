@@ -156,6 +156,24 @@ await page.click('summary:has-text("메모")'); await A('openPain'); await A('pi
 await A('openFinish'); assert.match(await page.textContent('.sheetbox'), /기록된 세트가 없어요/); await A('discard'); await A('confirmOk');
 st = await S(); assert.equal(st.sessions.filter((s) => s.status === 'done').length, 2); assert.equal(st.activeId, null); ok('empty workout can be discarded without saving');
 
+// ---- Phase-2 additions: per-set rest override, supersets, per-exercise rule, recovery advice
+await A('openStart', 'r-pull'); await A('doStart'); await page.waitForSelector('.panel');
+await A('restAdj', 15); await A('restAdj', 15); assert.match(await page.textContent('.restrow'), /120초/); ok('per-set rest override shown (90s default + 30)');
+await setInput('[data-c=wInput]', 40); await A('complete'); assert.equal((await S()).timer.duration, 120); ok('override applied to this set only');
+await A('tStop'); assert.match(await page.textContent('.restrow'), /90초/, 'next set uses exercise default (lat pulldown 90s)'); ok('next set returns to default rest');
+await A('openExList'); await A('linkEx', 0); assert.equal((await S()).sessions.find((x) => x.status === 'active').exercises[0].link, true); ok('link exercises as superset'); await closeSh();
+await A('selEx', 0); await A('selSet', 1); await setInput('[data-c=wInput]', 40); await A('complete');
+let ss = (await S()); assert.equal(ss.timer, null, 'no rest between superset pair'); assert.equal(ss.sessions.find((x) => x.status === 'active').curEx, 1); ok('superset: first exercise set -> jumps to partner, no timer');
+await setInput('[data-c=wInput]', 30); await A('complete');
+ss = await S(); assert.ok(ss.timer && ss.timer.duration === 90); assert.equal(ss.sessions.find((x) => x.status === 'active').curEx, 0); ok('superset: rest starts after partner set, returns to first exercise');
+await A('openExList'); await page.click('[data-a="moveEx"][data-id="1"][data-d="-1"]'); assert.equal((await S()).sessions.find((x) => x.status === 'active').exercises.some((e) => e.link), false); ok('reordering clears stale superset links'); await closeSh();
+await A('tStop');
+// manual rule hides suggestions
+await A('openFinish'); await A('doFinish'); await closeSh();
+await A('tab', 'routines'); await A('openLib'); await page.fill('#pickQ', 'EZ'); await page.click('#pickList [data-a=editEx]');
+await page.selectOption('#xRule', 'manual'); await A('saveEx'); assert.equal((await S()).exercises['ez-bar-curl'].rule, 'manual'); ok('per-exercise progression rule saved'); await closeSh();
+await A('tab', 'today'); assert.ok((await page.textContent('main')).length > 0);
+
 // ---- routines: edit never changes history
 await A('tab', 'routines'); await A('openRoutine', 'r-push');
 await page.fill('[data-c=rName]', 'Push A'); await page.dispatchEvent('[data-c=rName]', 'change');
@@ -171,12 +189,12 @@ assert.match(await toastText(), /근육/); await page.click('[data-a=togMuscle][
 st = await S(); const cx = Object.values(st.exercises).find((e) => e.name === 'Smith Bench'); assert.ok(cx && cx.custom); assert.equal(st.routines['r-push'].items.at(-1).exerciseId, cx.id); ok('custom exercise created and added to routine');
 const hist = st.sessions.find((x) => x.status === 'done');
 assert.equal(hist.routineName, 'Push Day'); assert.equal(hist.exercises.length, 8); ok('past sessions unchanged by routine/exercise edits (snapshots)');
-await A('delRoutine'); await A('confirmOk'); assert.equal((await S()).routineOrder.length, 3); ok('delete routine; history intact'); assert.equal((await S()).sessions.filter((s) => s.status === 'done').length, 2);
+await A('delRoutine'); await A('confirmOk'); assert.equal((await S()).routineOrder.length, 3); ok('delete routine; history intact'); assert.equal((await S()).sessions.filter((s) => s.status === 'done').length, 3);
 
 // ---- history / progress
-await A('tab', 'history'); assert.equal(await page.locator('.list .row').count(), 2); ok('history lists finished sessions');
+await A('tab', 'history'); assert.equal(await page.locator('.list .row').count(), 3); ok('history lists finished sessions');
 await page.click('.list .row >> nth=0'); assert.match(await page.textContent('main'), /추정 1RM/); ok('session detail shows sets/volume/e1RM');
-await A('backHistory'); await page.click('.list .row >> nth=1');
+await A('backHistory'); await page.click('.list .row >> nth=2');
 assert.equal(await page.locator('.note b').count(), 0); assert.match(await page.textContent('.note'), /<b>day<\/b>/); ok('user text is escaped (no HTML injection)');
 await A('backHistory');
 await A('tab', 'progress'); assert.ok(await page.isVisible('svg.chart')); ok('progress chart renders');
@@ -188,15 +206,15 @@ assert.match(await page.textContent('main'), /부위별 주간 세트/); ok('wee
 await A('tab', 'settings');
 const [dl] = await Promise.all([page.waitForEvent('download'), A('exportJson')]);
 const jsonPath = '/tmp/pp-backup.json'; await dl.saveAs(jsonPath); const bj = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-assert.equal(bj.app, 'push-and-pull'); assert.equal(bj.data.sessions.filter((s) => s.status === 'done').length, 2); ok('JSON backup export');
+assert.equal(bj.app, 'push-and-pull'); assert.equal(bj.data.sessions.filter((s) => s.status === 'done').length, 3); ok('JSON backup export');
 const [dl2] = await Promise.all([page.waitForEvent('download'), A('exportCsv')]);
 await dl2.saveAs('/tmp/pp.csv'); const csv = fs.readFileSync('/tmp/pp.csv', 'utf8'); assert.ok(csv.includes('Incline Dumbbell Press') && csv.split('\r\n').length > 20); ok('CSV export');
 await A('resetAll'); await A('confirmOk'); await A('confirmOk');
 st = await S(); assert.equal(st.sessions.length, 0); assert.equal(st.routineOrder.length, 4); ok('reset all (double confirm) restores defaults');
 await A('tab', 'settings'); await page.setInputFiles('#file', jsonPath); await page.waitForSelector('[data-a=confirmOk]'); await A('confirmOk');
-st = await S(); assert.equal(st.sessions.filter((s) => s.status === 'done').length, 2); assert.equal(st.routineOrder.length, 3); assert.ok(!st.routines['r-push']); ok('restore JSON backup (sessions + routine changes exactly as backed up)');
+st = await S(); assert.equal(st.sessions.filter((s) => s.status === 'done').length, 3); assert.equal(st.routineOrder.length, 3); assert.ok(!st.routines['r-push']); ok('restore JSON backup (sessions + routine changes exactly as backed up)');
 fs.writeFileSync('/tmp/bad.json', '{"app":"other"}'); await A('tab', 'settings'); await page.setInputFiles('#file', '/tmp/bad.json'); await page.waitForTimeout(200);
-assert.match(await toastText(), /백업 파일이 아닙니다/); assert.equal((await S()).sessions.filter((s) => s.status === 'done').length, 2); ok('invalid backup rejected, data untouched');
+assert.match(await toastText(), /백업 파일이 아닙니다/); assert.equal((await S()).sessions.filter((s) => s.status === 'done').length, 3); ok('invalid backup rejected, data untouched');
 fs.writeFileSync('/tmp/bad2.json', 'not json'); await page.setInputFiles('#file', '/tmp/bad2.json'); await page.waitForTimeout(200); assert.match(await toastText(), /JSON/); ok('non-JSON file rejected');
 
 // ---- corrupted storage doesn't crash, original preserved

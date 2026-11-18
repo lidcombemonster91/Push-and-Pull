@@ -164,3 +164,10 @@ ul.info { padding-left: 18px; line-height: 1.6; width: auto; height: auto; displ
 .xbtn { position: absolute; right: 12px; top: 12px; width: 40px; height: 40px; border-radius: 50%; background: var(--s2); display: grid; place-items: center; color: var(--mu); z-index: 2; }
 .sheetbox h3 { padding-right: 44px; }
 .panel > .small { margin-top: 12px; }
+
+.restrow { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
+.restrow .chip { flex: none; min-width: 64px; height: 40px; } .restrow b { min-width: 56px; text-align: center; }
+.mv .lk { color: var(--dim); } .mv .lk.on { color: var(--amber); }
+.strip .chip.lnk { box-shadow: 4px 0 0 -1px var(--amber); margin-right: 2px; }
+.advice { border-radius: 16px; padding: 12px 14px; margin: 10px 0; background: #1f1812; border: 1px solid #4a3422; } .advice.rest { background: #14181f; border-color: #26344a; }
+.advice b { font-size: 14px; } .advice p { font-size: 13.5px; color: #d9cfc2; margin-top: 2px; }
