@@ -6,6 +6,15 @@ export const MODES = {
   bodyweight: '맨몸 (+추가 중량)',
 };
 
+/** Step along an owned-weights ladder (sorted ascending). cur may be null/not on the ladder. dir = +1 | -1. */
+export function ladderStep(list, cur, dir) {
+  const l = [...new Set(list)].filter((n) => n > 0).sort((a, b) => a - b);
+  if (!l.length) return null;
+  if (cur == null || !(cur > 0)) return dir > 0 ? l[0] : null;
+  if (dir > 0) return l.find((n) => n > cur + 1e-9) ?? null;
+  const lower = l.filter((n) => n < cur - 1e-9);
+  return lower.length ? lower[lower.length - 1] : null;
+}
 export const round025 = (n) => Math.round(n * 4) / 4;
 export const fmtNum = (n) => (n == null || n === '' || Number.isNaN(+n) ? '–' : String(+(+n).toFixed(2)));
 export const pad = (n) => String(n).padStart(2, '0');
@@ -75,10 +84,12 @@ export function suggest(hist, target, rule = 'strict') {
     : ws.every((s) => s.reps >= target.repMax);
   const rirOk = ws.every((s) => s.rir == null || s.rir >= minRir);
   const form = !last.formBreak;
+  const up = target.ladder ? ladderStep(target.ladder, top, 1) : null;
+  const down = target.ladder ? ladderStep(target.ladder, top, -1) : null;
   if (allTop && rirOk && form) {
-    const delta = target.inc;
-    return { type: 'increase', delta, to: round025(top + delta), from: top,
-      msg: `${rule === 'average' ? '첫 세트 ' + target.repMax + '회 · 평균 양호' : '모든 세트 ' + target.repMax + '회 달성'} · RIR 양호 → ${fmtNum(top + delta)}kg로 증가 제안` };
+    const to = up ?? round025(top + target.inc), delta = round025(to - top);
+    return { type: 'increase', delta, to, from: top,
+      msg: `${rule === 'average' ? '첫 세트 ' + target.repMax + '회 · 평균 양호' : '모든 세트 ' + target.repMax + '회 달성'} · RIR 양호 → ${fmtNum(to)}kg로 증가 제안` };
   }
   if (allTop && (!rirOk || !form)) {
     return { type: 'hold', delta: 0, to: top, from: top,
@@ -86,8 +97,8 @@ export function suggest(hist, target, rule = 'strict') {
   }
   const below = (h) => doneWork(h).some((s) => s.reps < target.repMin);
   if (below(last) && hist[1] && below(hist[1]) && Math.max(...doneWork(hist[1]).map((s) => s.weight)) >= top) {
-    const to = Math.max(0, round025(top - target.inc));
-    return { type: 'reduce', delta: -target.inc, to, from: top,
+    const to = down ?? Math.max(0, round025(top - target.inc));
+    return { type: 'reduce', delta: round025(to - top), to, from: top,
       msg: `2회 연속 ${target.repMin}회 미달 → ${fmtNum(to)}kg로 조정 제안` };
   }
   if (below(last)) {

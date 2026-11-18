@@ -67,5 +67,31 @@ const errs = [];
   const t = await p.textContent('.sheetbox'); assert.match(t, /수고했어요/); ok('30h-old session finishes cleanly');
   await ctx.close();
 }
+// ---- 6. weight carry-over rules with history + custom dumbbell list
+{
+  const ctx = await b.newContext(devices['iPhone 14']); const p = await ctx.newPage(); p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(U); await p.waitForSelector('nav');
+  await p.evaluate(() => { const S = window.__pp.S; S.settings.dumbbells = [10, 15, 20, 25, 30];
+    const snap = (m) => ({ name: 'Incline Dumbbell Press', ko: '인클라인 덤벨 프레스', mode: 'perHand', primary: ['가슴'], secondary: [], repMin: 8, repMax: 10, rir: 2, rest: 120, inc: 2 });
+    const mk = (id, t, ws) => ({ id, routineId: 'r-push', routineName: 'Push Day', startedAt: t, endedAt: t + 3e6, status: 'done', pre: null, post: null, pain: [], curEx: 0, exercises: [{ id: id + 'e', exerciseId: 'incline-db-press', snap: snap(), skipped: false, formBreak: false, note: '', sets: ws.map((w, i) => ({ id: id + i, type: 'work', weight: w, reps: 9, rir: 2, done: true })) }] });
+    S.sessions.push(mk('h1', Date.now() - 7 * 864e5, [20, 20, 20, 20])); localStorage.setItem('pp:v1', JSON.stringify(S)); });
+  await p.reload(); await p.waitForSelector('nav');
+  await p.click('[data-a=openStart][data-id="r-push"]'); await p.click('[data-a=doStart]'); await p.waitForSelector('.panel');
+  assert.equal(await p.locator('#ladder .chip').count(), 5); ok('custom dumbbell list is used (5 owned weights)');
+  assert.equal(await p.inputValue('[data-c=wInput]'), '20'); ok('history default 20 prefilled');
+  await p.click('[data-a=pickW][data-id="25"]'); await p.click('[data-a=complete]');
+  let w = await p.evaluate(() => window.__pp.S.sessions.at(-1).exercises[0].sets.map((x) => x.weight)); assert.deepEqual(w, [25, 25, 25, 25]); ok('raising set 1 from the flat history default carries to untouched later sets');
+  await p.click('[data-a=wStep][data-id="-1"]'); assert.equal(await p.inputValue('[data-c=wInput]'), '20'); ok('− on 25 goes to the previous owned dumbbell (20)');
+  await p.evaluate(() => { const S = window.__pp.S; const s = S.sessions.find((x) => x.status === 'done'); s.exercises[0].sets.forEach((x, i) => { x.weight = [20, 22, 24, 26][i]; }); localStorage.setItem('pp:v1', JSON.stringify(S)); });
+  await ctx.close();
+  const ctx2 = await b.newContext(devices['iPhone 14']); const q = await ctx2.newPage(); q.on('pageerror', (e) => errs.push(e.message));
+  await q.goto(U); await q.waitForSelector('nav');
+  await q.evaluate(() => { const S = window.__pp.S; const snap = { name: 'Incline Dumbbell Press', ko: '인클라인 덤벨 프레스', mode: 'perHand', primary: ['가슴'], secondary: [], repMin: 8, repMax: 10, rir: 2, rest: 120, inc: 2 };
+    S.sessions.push({ id: 'h', routineId: 'r-push', routineName: 'Push Day', startedAt: Date.now() - 864e5, endedAt: Date.now() - 864e5 + 1e6, status: 'done', pre: null, post: null, pain: [], curEx: 0, exercises: [{ id: 'he', exerciseId: 'incline-db-press', snap, skipped: false, formBreak: false, note: '', sets: [20, 22, 24, 26].map((w, i) => ({ id: 'p' + i, type: 'work', weight: w, reps: 9, rir: 2, done: true })) }] }); localStorage.setItem('pp:v1', JSON.stringify(S)); });
+  await q.reload(); await q.waitForSelector('nav'); await q.click('[data-a=openStart][data-id="r-push"]'); await q.click('[data-a=doStart]'); await q.waitForSelector('.panel');
+  await q.fill('[data-c=wInput]', '30'); await q.dispatchEvent('[data-c=wInput]', 'change'); await q.click('[data-a=complete]');
+  w = await q.evaluate(() => window.__pp.S.sessions.at(-1).exercises[0].sets.map((x) => x.weight)); assert.deepEqual(w, [30, 22, 24, 26]); ok('pyramid history (20/22/24/26): changing set 1 does NOT overwrite the other planned weights');
+  await ctx2.close();
+}
 await b.close(); srv.close();
 console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : '  ✓ no page errors'); process.exit(errs.length ? 1 : 0);

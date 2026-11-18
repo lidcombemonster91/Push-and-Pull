@@ -2,13 +2,14 @@ import { DEFAULT_EXERCISES, DEFAULT_ROUTINES } from './data.js';
 import { APP_ID, SCHEMA, validateBackup } from './logic.js';
 
 const KEY = 'pp:v1';
+const DB_DEFAULT = Array.from({ length: 20 }, (_, i) => (i + 1) * 2); // 2..40 kg, editable in Settings
 export const uid = () => (globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
 /** The whole persisted document. Shaped so a future cloud sync can diff by id + updatedAt. */
 export const S = {
   schema: SCHEMA,
-  settings: { sound: true, vibrate: true, wakeLock: true, barWeight: 20, plates: [25, 20, 15, 10, 5, 2.5, 1.25], bodyweight: 0, warmupRest: 45 },
+  settings: { sound: true, vibrate: true, wakeLock: true, barWeight: 20, plates: [25, 20, 15, 10, 5, 2.5, 1.25], dumbbells: DB_DEFAULT, bodyweight: 0, warmupRest: 45 },
   exercises: {},      // id -> exercise definition (library)
   routines: {},       // id -> {id,name,desc,items:[{id,exerciseId,sets,repMin,repMax,rir,rest}]}
   routineOrder: [],
@@ -107,7 +108,7 @@ export function importJSON(text) {
 
 export function resetAll() {
   for (const k of Object.keys(S)) delete S[k];
-  Object.assign(S, { schema: SCHEMA, settings: { sound: true, vibrate: true, wakeLock: true, barWeight: 20, plates: [25, 20, 15, 10, 5, 2.5, 1.25], bodyweight: 0, warmupRest: 45 }, sessions: [], activeId: null, timer: null, meta: { createdAt: Date.now(), updatedAt: Date.now() } });
+  Object.assign(S, { schema: SCHEMA, settings: { sound: true, vibrate: true, wakeLock: true, barWeight: 20, plates: [25, 20, 15, 10, 5, 2.5, 1.25], dumbbells: DB_DEFAULT, bodyweight: 0, warmupRest: 45 }, sessions: [], activeId: null, timer: null, meta: { createdAt: Date.now(), updatedAt: Date.now() } });
   seed();
   save();
 }

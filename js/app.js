@@ -71,7 +71,7 @@ function snapOf(ex, cfg) {
 }
 const lastHist = (exerciseId, mode) => L.history(S.sessions, exerciseId, mode, S.activeId);
 
-function newSet(type, weight, reps, rir) { return { id: uid(), type, weight, reps, rir, done: false }; }
+function newSet(type, weight, reps, rir) { return { id: uid(), type, weight, reps, rir, done: false, def: weight }; }
 function buildExercise(exerciseId, cfg) {
   const ex = S.exercises[exerciseId];
   const snap = snapOf(ex, cfg);
@@ -120,9 +120,10 @@ function prevFor(ex, idx) {
 }
 function suggestionFor(ex) {
   const h = lastHist(ex.exerciseId, ex.snap.mode);
-  return L.suggest(h, { repMin: ex.snap.repMin, repMax: ex.snap.repMax, rir: ex.snap.rir, inc: ex.snap.inc }, ex.snap.rule || 'strict');
+  return L.suggest(h, { repMin: ex.snap.repMin, repMax: ex.snap.repMax, rir: ex.snap.rir, inc: ex.snap.inc, ladder: ladderOf(ex) }, ex.snap.rule || 'strict');
 }
 
+const ladderOf = (ex) => (ex.snap.mode === 'perHand' && S.settings.dumbbells?.length ? S.settings.dumbbells : null);
 const restFor = (ex, st) => (Number.isFinite(st.rest) ? st.rest : st.type === 'warmup' ? Math.min(ex.snap.rest, S.settings.warmupRest) : ex.snap.rest);
 function completeSet(ex, idx) {
   const st = ex.sets[idx], sess = active();
@@ -136,6 +137,16 @@ function completeSet(ex, idx) {
     let maxW = b.maxW, best1 = b.best1;
     for (const o of sess.exercises) if (o.exerciseId === ex.exerciseId) for (const s of o.sets) if (s !== st && s.done && s.type === 'work') { maxW = Math.max(maxW, s.weight || 0); best1 = Math.max(best1, L.e1rm(s.weight, s.reps)); }
     if (b.any && st.weight > 0 && (st.weight > maxW || L.e1rm(st.weight, st.reps) > best1)) { st.pr = true; toast('개인 최고 기록 달성!', 'pr'); buzz([40, 60, 40]); }
+  }
+  // Carry the weight you just used to later, untouched work sets (empty first-timers, or flat history defaults),
+  // so you only adjust up/down from the last weight instead of starting from 0 again.
+  if (st.type === 'work' && st.weight > 0) {
+    for (let j = idx + 1; j < ex.sets.length; j++) {
+      const n = ex.sets[j];
+      if (n.done || n.type !== 'work') continue;
+      const nd = n.def ?? null, sd = st.def ?? null;
+      if ((n.weight ?? null) === nd && nd === sd && st.weight !== sd) n.weight = st.weight;
+    }
   }
   const rest = restFor(ex, st);
   // Superset: no rest between the two linked exercises; rest only after the second one.
@@ -178,7 +189,20 @@ function render() {
   const m = document.querySelector('main'); if (m) m.scrollTop = sc;
   if (ui.focusPanel) { ui.focusPanel = false; const pn = document.querySelector('.panel') || document.querySelector('.exhead'); pn?.scrollIntoView({ block: pn.classList.contains('panel') ? 'end' : 'start' }); }
   renderSheet();
+  const lad = document.getElementById('ladder'), on = lad?.querySelector('.on');
+  if (lad && on) lad.scrollLeft = on.offsetLeft - lad.clientWidth / 2 + on.clientWidth / 2;
+  fillPersist();
   tick(true);
+}
+async function fillPersist() {
+  const el = document.getElementById('persist'); if (!el) return;
+  let t = '저장소 상태를 확인할 수 없는 브라우저예요. 주기적으로 JSON 백업을 하세요.';
+  try {
+    if (status.memoryOnly) t = '저장소: 사용할 수 없음 — 이 브라우저는 저장을 막고 있어요. 새로고침하면 기록이 사라집니다.';
+    else if (navigator.storage?.persisted) t = (await navigator.storage.persisted()) ? '저장소: 영구 보존이 허용되어 있어요 (브라우저가 임의로 지우지 않아요).' : '저장소: 브라우저가 공간이 부족하면 지울 수 있어요. 홈 화면에 추가하고 주기적으로 JSON 백업을 하세요.';
+    else t = '저장소: 이 기기의 브라우저에 저장 중이에요. 영구 보존 여부는 이 브라우저에서 확인할 수 없어요. 주기적으로 JSON 백업을 하세요.';
+  } catch (_) {}
+  const again = document.getElementById('persist'); if (again) again.textContent = t;
 }
 
 // ================= Today =================
@@ -285,14 +309,15 @@ function setPanel(ex, idx) {
   return `<div class="panel">
     <div class="pl">${st.type === 'warmup' ? '워밍업 세트' : `세트 ${ex.sets.slice(0, idx + 1).filter((s) => s.type === 'work').length}`} <span class="mu">${p ? `· 지난번 ${fmtNum(p.weight)}kg × ${p.reps}` : ''}</span></div>
     <div class="stepper"><button class="step" data-a="wStep" data-id="-1" aria-label="중량 감소">${icon('minus')}</button>
-      <label class="val"><input data-c="wInput" inputmode="decimal" value="${st.weight != null ? fmtNum(st.weight) : ''}" placeholder="${bw ? '0' : '–'}" aria-label="중량 kg"><span>kg · ${MODES[ex.snap.mode]}${bw ? '' : ''}</span></label>
+      <label class="val"><input data-c="wInput" inputmode="decimal" value="${st.weight != null ? fmtNum(st.weight) : ''}" placeholder="${bw ? '0' : '–'}" aria-label="중량 kg"><span>kg · ${MODES[ex.snap.mode]}</span></label>
       <button class="step" data-a="wStep" data-id="1" aria-label="중량 증가">${icon('plus')}</button></div>
+    ${ladderOf(ex) ? `<div class="ladder" id="ladder" role="listbox" aria-label="보유 덤벨 무게 선택">${[...new Set(ladderOf(ex))].sort((a, b) => a - b).map((w) => `<button class="chip ${st.weight === w ? 'on' : ''}" data-a="pickW" data-id="${w}" role="option" aria-selected="${st.weight === w}">${fmtNum(w)}</button>`).join('')}</div>` : ''}
     <div class="stepper small"><button class="step" data-a="rStep" data-id="-1" aria-label="반복 감소">${icon('minus')}</button>
       <label class="val"><input data-c="rInput" inputmode="numeric" value="${st.reps ?? ''}" aria-label="반복수"><span>회</span></label>
       <button class="step" data-a="rStep" data-id="1" aria-label="반복 증가">${icon('plus')}</button></div>
     <div class="rir"><span class="mu">RIR</span>${[0, 1, 2, 3, 4].map((v) => `<button class="chip ${st.rir === v ? 'on' : ''}" data-a="setRir" data-id="${v}">${v === 4 ? '4+' : v}</button>`).join('')}</div>
     ${st.done ? `<button class="btn big" data-a="uncomplete">완료 취소</button>` : `<div class="restrow"><span class="mu">이 세트 휴식</span><button class="chip" data-a="restAdj" data-id="-15" aria-label="휴식 15초 감소">−15</button><b>${restFor(ex, st)}초</b><button class="chip" data-a="restAdj" data-id="15" aria-label="휴식 15초 증가">+15</button></div><button class="btn primary big" data-a="complete">${ex.link || active().exercises[active().exercises.indexOf(ex) - 1]?.link ? '세트 완료 · 슈퍼세트' : '세트 완료'}</button>`}
-    <p class="mu small center">증감 단위 ${fmtNum(step)}kg · 운동 정보에서 변경</p></div>`;
+    <p class="mu small center">${ladderOf(ex) ? '보유 덤벨 목록에서 선택 · 설정에서 변경' : `증감 단위 ${fmtNum(step)}kg · 운동 정보에서 변경`}</p></div>`;
 }
 
 // ---- timer bar ----
@@ -453,6 +478,7 @@ function settingsView() {
   <h2>바벨 · 체중</h2>
   <div class="list"><div class="row"><div><b>바 무게</b></div><input class="mini" data-c="sBar" inputmode="decimal" value="${st.barWeight}"><span class="mu">kg</span></div>
     <div class="row"><div><b>보유 플레이트 (한쪽, kg)</b><p class="mu small">쉼표로 구분</p></div><input class="mid" data-c="sPlates" value="${st.plates.join(', ')}"></div>
+    <div class="row"><div><b>보유 덤벨 (개당, kg)</b><p class="mu small">쉼표로 구분 · 덤벨 운동에서 이 목록으로 선택하고 ± 도 이 목록을 따라 이동</p></div><input class="mid" data-c="sDb" value="${(st.dumbbells || []).join(', ')}"></div>
     <div class="row"><div><b>체중 (선택)</b><p class="mu small">맨몸 운동 볼륨 계산용 · 0이면 추가 중량만</p></div><input class="mini" data-c="sBw" inputmode="decimal" value="${st.bodyweight || ''}" placeholder="0"><span class="mu">kg</span></div></div>
   <h2>데이터</h2>
   <p class="mu small pad">운동 ${nS}회 · 이 기기의 브라우저에만 저장됩니다. 기기 변경·브라우저 데이터 삭제 전에 꼭 백업하세요.</p>
@@ -659,7 +685,13 @@ const A = {
   jumpEx: (id) => { ui.focusPanel = true; const s = active(); s.curEx = +id; ui.setIdx = null; save(); closeSheet(); render(); },
   nextEx: () => { ui.focusPanel = true; const s = active(); let i = s.curEx + 1; while (i < s.exercises.length && s.exercises[i].skipped) i++; if (i < s.exercises.length) s.curEx = i; ui.setIdx = null; save(); render(); },
   selSet: (id) => { ui.focusPanel = true; ui.setIdx = +id; render(); },
-  wStep: (id) => { const ex = cur(), i = selectedSet(ex), st = ex.sets[i]; const base = st.weight ?? 0; st.weight = Math.max(0, L.round025(base + +id * ex.snap.inc)); save(); render(); },
+  wStep: (id) => {
+    const ex = cur(), i = selectedSet(ex), st = ex.sets[i], lad = ladderOf(ex);
+    if (lad) { const nw = L.ladderStep(lad, st.weight, +id > 0 ? 1 : -1); if (nw == null) return toast(+id > 0 ? '보유한 덤벨 중 가장 무거운 무게예요' : '보유한 덤벨 중 가장 가벼운 무게예요'); st.weight = nw; }
+    else st.weight = Math.max(0, L.round025((st.weight ?? 0) + +id * ex.snap.inc));
+    save(); render();
+  },
+  pickW: (id) => { const ex = cur(), st = ex.sets[selectedSet(ex)]; st.weight = +id; save(); render(); },
   rStep: (id) => { const ex = cur(), st = ex.sets[selectedSet(ex)]; st.reps = clamp((st.reps || 0) + +id, 0, 100); save(); render(); },
   setRir: (id) => { const ex = cur(), st = ex.sets[selectedSet(ex)]; st.rir = +id; save(); render(); },
   complete: () => { const ex = cur(); completeSet(ex, selectedSet(ex)); },
@@ -678,7 +710,15 @@ const A = {
     const ex = cur(), sug = suggestionFor(ex); if (!sug || (sug.type !== 'increase' && sug.type !== 'reduce')) return;
     const h = lastHist(ex.exerciseId, ex.snap.mode)[0], pw = L.doneWork(h);
     let k = 0;
-    for (const st of ex.sets) if (st.type === 'work') { if (!st.done) st.weight = Math.max(0, L.round025(pw[Math.min(k, pw.length - 1)].weight + sug.delta)); k++; }
+    const lad = ladderOf(ex);
+    for (const st of ex.sets) if (st.type === 'work') {
+      if (!st.done) {
+        const base = pw[Math.min(k, pw.length - 1)].weight;
+        const nw = lad ? L.ladderStep(lad, base, sug.delta > 0 ? 1 : -1) : null;
+        st.weight = Math.max(0, nw ?? L.round025(base + sug.delta));
+      }
+      k++;
+    }
     ex.sugApplied = true; save(); render(); toast('미완료 세트에 제안 중량을 적용했습니다');
   },
   skipEx: () => { const ex = cur(); const go = () => { ex.skipped = true; ui.setIdx = null; save(); closeSheet(); A.nextEx(); }; if (ex.sets.some((s) => s.done)) confirmSheet('운동을 건너뛸까요?', '이미 완료한 세트는 기록에 남습니다.', '건너뛰기', go, false); else go(); },
@@ -790,6 +830,7 @@ document.addEventListener('change', (ev) => {
   else if (c === 'sBar') { const v = num(el.value); if (v >= 0 && v < 100) S.settings.barWeight = v; else toast('바 무게를 확인하세요', 'bad'); save(); render(); }
   else if (c === 'sBw') { const v = el.value.trim() === '' ? 0 : num(el.value); if (v >= 0 && v < 400) S.settings.bodyweight = v; else toast('체중을 확인하세요', 'bad'); save(); render(); }
   else if (c === 'sWarm') { const v = num(el.value); if (v >= 0 && v <= 600) S.settings.warmupRest = Math.round(v); save(); render(); }
+  else if (c === 'sDb') { const p = el.value.split(/[,\s]+/).map(num).filter((n) => n > 0 && n <= 200); if (p.length) S.settings.dumbbells = [...new Set(p)].sort((a, b) => a - b); else toast('덤벨 무게를 한 개 이상 입력하세요', 'bad'); save(); render(); }
   else if (c === 'sPlates') { const p = el.value.split(/[,\s]+/).map(num).filter((n) => n > 0); if (p.length) S.settings.plates = [...new Set(p)].sort((a, b) => b - a); else toast('플레이트 무게를 입력하세요', 'bad'); save(); render(); }
   if (el.id === 'file') return;
 });
@@ -834,9 +875,6 @@ load();
 render();
 if (active()) { ui.inWorkout = true; wakeLock(true); render(); }
 if (status.corrupt) toast('저장된 데이터를 읽지 못해 새로 시작했습니다. 원본은 보관되어 있습니다.', 'bad');
-setTimeout(async () => {
-  const el = document.getElementById('persist');
-  if (el && navigator.storage?.persisted) { try { el.textContent = (await navigator.storage.persisted()) ? '저장소: 영구 보존 허용됨' : '저장소: 브라우저가 공간 부족 시 삭제할 수 있음 — 홈 화면에 추가하고 주기적으로 백업하세요'; } catch (_) {} }
-}, 600);
+
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
 window.__pp = { S, ui, A, render }; // test hook

@@ -55,12 +55,17 @@ assert.equal((await S()).timer, null); ok('rejected set does not start the timer
 await setInput('[data-c=wInput]', '-5'); assert.match(await toastText(), /올바른/); ok('negative weight rejected');
 await setInput('[data-c=wInput]', 'abc'); assert.match(await toastText(), /올바른/); ok('non-numeric weight rejected');
 await A('wStep', 1); await A('wStep', 1);
-assert.equal(await page.inputValue('[data-c=wInput]'), '4'); ok('stepper uses exercise increment (2kg dumbbell) from empty');
+assert.equal(await page.inputValue('[data-c=wInput]'), '4'); ok('stepper from empty walks the owned-dumbbell list (2 → 4)');
+assert.equal(await page.locator('#ladder .chip').count(), 20); ok('dumbbell exercise shows scrollable list of owned weights');
+await A('wStep', -1); assert.equal(await page.inputValue('[data-c=wInput]'), '2'); ok('− steps to the previous owned dumbbell');
 await setInput('[data-c=wInput]', '20'); await A('rStep', 1);
 await A('setRir', 2); await A('complete');
 let t = (await S()).timer; assert.equal(t.duration, 120); ok('completing a set auto-starts the exercise rest timer (120s)');
 assert.ok(await page.isVisible('#tleft')); ok('timer UI visible');
 const first = (await S()).sessions[0].exercises[0].sets[0]; assert.deepEqual([first.weight, first.reps, first.rir, first.done], [20, 9, 2, true]); ok('set stored with weight/reps/RIR');
+assert.equal((await S()).sessions[0].exercises[0].sets[1].weight, 20); ok('NEW: after completing a set the next sets keep that weight (no reset to empty)');
+assert.equal(await page.inputValue('[data-c=wInput]'), '20'); ok('NEW: the next set panel shows the carried weight');
+await A('pickW', 24); assert.equal(await page.inputValue('[data-c=wInput]'), '24'); await A('pickW', 20); ok('tap a weight chip to set it');
 
 // timer controls
 await A('tAdj', 15); assert.ok(Math.abs((await S()).timer.duration - 135) <= 0); ok('+15s');
@@ -214,6 +219,10 @@ assert.match(await page.textContent('main'), /부위별 주간 세트/); ok('wee
 
 // ---- backup / restore / CSV
 await A('tab', 'settings');
+assert.match(await page.textContent('#persist'), /저장소/); ok('Settings shows the storage status line');
+await page.fill('[data-c=sDb]', '5, 10, 17.5'); await page.dispatchEvent('[data-c=sDb]', 'change');
+assert.deepEqual((await S()).settings.dumbbells, [5, 10, 17.5]); ok('owned dumbbells editable in Settings');
+await page.fill('[data-c=sDb]', ''); await page.dispatchEvent('[data-c=sDb]', 'change'); assert.match(await toastText(), /덤벨 무게/); assert.deepEqual((await S()).settings.dumbbells, [5, 10, 17.5]); ok('empty dumbbell list rejected');
 const [dl] = await Promise.all([page.waitForEvent('download'), A('exportJson')]);
 const jsonPath = '/tmp/pp-backup.json'; await dl.saveAs(jsonPath); const bj = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
 assert.equal(bj.app, 'push-and-pull'); assert.equal(bj.data.sessions.filter((s) => s.status === 'done').length, 3); ok('JSON backup export');

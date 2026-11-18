@@ -171,3 +171,7 @@ ul.info { padding-left: 18px; line-height: 1.6; width: auto; height: auto; displ
 .strip .chip.lnk { box-shadow: 4px 0 0 -1px var(--amber); margin-right: 2px; }
 .advice { border-radius: 16px; padding: 12px 14px; margin: 10px 0; background: #1f1812; border: 1px solid #4a3422; } .advice.rest { background: #14181f; border-color: #26344a; }
 .advice b { font-size: 14px; } .advice p { font-size: 13.5px; color: #d9cfc2; margin-top: 2px; }
+
+.ladder { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 12px; margin: 0 -2px; scroll-snap-type: x proximity; scrollbar-width: none; }
+.ladder::-webkit-scrollbar { display: none; }
+.ladder .chip { flex: 0 0 auto; min-width: 54px; height: 48px; scroll-snap-align: center; font-size: 17px; }

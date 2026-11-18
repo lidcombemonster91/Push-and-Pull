@@ -177,3 +177,23 @@ test('validateBackup: structurally broken data that would crash rendering is rej
   assert.ok(L.validateBackup(mk({ exercises: { a: { ...ex, primary: null } } })));
   assert.ok(L.validateBackup(mk({ routines: { r: { name: 'R', items: [null] } } })));
 });
+
+test('ladderStep walks an owned-dumbbell list (null / off-ladder / ends)', () => {
+  const l = [10, 2, 4, 6, 8];
+  assert.equal(L.ladderStep(l, 6, 1), 8); assert.equal(L.ladderStep(l, 6, -1), 4);
+  assert.equal(L.ladderStep(l, 10, 1), null, 'no heavier dumbbell'); assert.equal(L.ladderStep(l, 2, -1), null, 'no lighter dumbbell');
+  assert.equal(L.ladderStep(l, 7, 1), 8, 'off-ladder value snaps to the next one up'); assert.equal(L.ladderStep(l, 7, -1), 6);
+  assert.equal(L.ladderStep(l, null, 1), 2, 'from empty: lightest'); assert.equal(L.ladderStep(l, null, -1), null);
+  assert.equal(L.ladderStep([], 5, 1), null);
+});
+
+test('suggest with an owned-dumbbell ladder jumps to the next owned weight, not +inc', () => {
+  const h = [mkSess('a', 1, 'e', [mkSet(20, 10), mkSet(20, 10)], {}, 'perHand').exercises[0]];
+  const s = L.suggest(h, { ...T, inc: 2, ladder: [10, 15, 20, 25, 30] });
+  assert.equal(s.type, 'increase'); assert.equal(s.to, 25); assert.equal(s.delta, 5); assert.match(s.msg, /25kg/);
+  const top = L.suggest(h, { ...T, inc: 2, ladder: [10, 15, 20] });
+  assert.equal(top.to, 22, 'heaviest owned already used -> falls back to +inc');
+  const fail = (id, t) => mkSess(id, t, 'e', [mkSet(20, 6), mkSet(20, 5)], {}, 'perHand').exercises[0];
+  const r = L.suggest([fail('a', 2), fail('b', 1)], { ...T, ladder: [10, 15, 20, 25] });
+  assert.equal(r.type, 'reduce'); assert.equal(r.to, 15);
+});
