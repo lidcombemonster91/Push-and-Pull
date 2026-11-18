@@ -488,7 +488,7 @@ function settingsView() {
     <button class="row" data-a="restoreDef"><div><b>기본 운동/루틴 복원</b><p class="mu small">삭제한 기본 항목만 다시 추가 (수정한 항목은 유지)</p></div>${icon('chev')}</button>
     <button class="row danger" data-a="resetAll"><div><b>모든 데이터 초기화</b></div>${icon('chev')}</button></div>
   <input type="file" id="file" accept="application/json,.json" hidden>
-  <p class="mu small pad" id="persist"></p>
+  <p class="mu small pad" id="persist">저장소: 상태 확인 중…</p>
   <p class="mu small pad">Push &amp; Pull v1 · kg 단위</p>`;
 }
 function toggle(k, label, note) {

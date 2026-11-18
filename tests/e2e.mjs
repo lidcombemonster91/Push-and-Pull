@@ -219,7 +219,7 @@ assert.match(await page.textContent('main'), /부위별 주간 세트/); ok('wee
 
 // ---- backup / restore / CSV
 await A('tab', 'settings');
-assert.match(await page.textContent('#persist'), /저장소/); ok('Settings shows the storage status line');
+await page.waitForFunction(() => /저장소: (?!상태 확인 중)/.test(document.getElementById('persist')?.textContent || '')); ok('Settings shows the resolved storage status line');
 await page.fill('[data-c=sDb]', '5, 10, 17.5'); await page.dispatchEvent('[data-c=sDb]', 'change');
 assert.deepEqual((await S()).settings.dumbbells, [5, 10, 17.5]); ok('owned dumbbells editable in Settings');
 await page.fill('[data-c=sDb]', ''); await page.dispatchEvent('[data-c=sDb]', 'change'); assert.match(await toastText(), /덤벨 무게/); assert.deepEqual((await S()).settings.dumbbells, [5, 10, 17.5]); ok('empty dumbbell list rejected');
