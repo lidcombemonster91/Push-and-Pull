@@ -115,7 +115,7 @@ export function resetAll() {
 
 // ---------- Rest timer (timestamp based => survives lock screen / app switch / reload) ----------
 export const timer = {
-  start(seconds, label) { S.timer = { endAt: Date.now() + seconds * 1000, duration: seconds, paused: false, remaining: seconds, label, fired: false }; save(); },
+  start(seconds, label, persist = true) { S.timer = { endAt: Date.now() + seconds * 1000, duration: seconds, paused: false, remaining: seconds, label, fired: false }; if (persist) save(); },
   remaining() {
     const t = S.timer; if (!t) return 0;
     return t.paused ? t.remaining : Math.max(0, Math.ceil((t.endAt - Date.now()) / 1000));

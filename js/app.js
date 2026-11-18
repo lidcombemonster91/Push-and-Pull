@@ -99,7 +99,7 @@ function startSession(routineId, o) {
     exercises: fit.items.map((i) => buildExercise(i.exerciseId, i)),
   };
   S.sessions.push(sess); S.activeId = sess.id; S.timer = null; save();
-  ui.inWorkout = true; ui.setIdx = null; ui.sheet = null;
+  ui.inWorkout = true; ui.setIdx = null; ui.sheet = null; ui.focusPanel = true;
   wakeLock(true);
   if (fit.removedSets || fit.dropped.length) toast(`${o.minutes}분 제한: 세트 ${fit.removedSets}개 감소${fit.dropped.length ? `, 운동 ${fit.dropped.length}개 제외` : ''}`);
   render();
@@ -155,7 +155,7 @@ function completeSet(ex, idx) {
   const partner = sess2.exercises[pIdx];
   const pending = partner && !partner.skipped && partner.sets.some((x) => x.done === false);
   if (first && pending) { sess2.curEx = pIdx; toast('슈퍼세트 · 바로 다음 운동으로'); }
-  else { timer.start(rest, ex.snap.ko); if (pending) sess2.curEx = pIdx; }
+  else { timer.start(rest, ex.snap.ko, false); if (pending) sess2.curEx = pIdx; }
   ui.setIdx = null; ui.focusPanel = true;
   save(); render();
 }
@@ -166,8 +166,14 @@ function finishSession(post) {
     ex.sets = ex.sets.filter((s) => s.done);
     if (!ex.sets.length) ex.skipped = true;
   }
+  const before = JSON.stringify(sess), prevId = S.activeId, prevTimer = S.timer;
   sess.status = 'done'; sess.endedAt = Date.now(); sess.post = post;
-  S.activeId = null; S.timer = null; save();
+  S.activeId = null; S.timer = null;
+  if (!save()) {
+    // Storage full / blocked: keep the workout open exactly as it was, never claim it was saved.
+    Object.assign(sess, JSON.parse(before)); S.activeId = prevId; S.timer = prevTimer;
+    return { error: true };
+  }
   ui.inWorkout = false; wakeLock(false);
   return sess;
 }
@@ -187,12 +193,24 @@ function render() {
   $app.innerHTML = `<main class="${inW ? 'wo' : ''}">${status.memoryOnly ? '<div class="banner bad">이 브라우저는 저장소를 막고 있어 새로고침하면 기록이 사라집니다.</div>' : ''}${body}</main>
   ${inW ? '' : `<nav>${NAV.map(([k, en, ko]) => `<button data-a="tab" data-id="${k}" class="${ui.tab === k ? 'on' : ''}" aria-label="${en}">${icon(k)}<span>${en}</span><em>${ko}</em></button>`).join('')}</nav>`}`;
   const m = document.querySelector('main'); if (m) m.scrollTop = sc;
-  if (ui.focusPanel) { ui.focusPanel = false; const pn = document.querySelector('.panel') || document.querySelector('.exhead'); pn?.scrollIntoView({ block: pn.classList.contains('panel') ? 'end' : 'start' }); }
+  if (ui.focusPanel) { ui.focusPanel = false; revealPanel(); }
   renderSheet();
   const lad = document.getElementById('ladder'), on = lad?.querySelector('.on');
   if (lad && on) lad.scrollLeft = on.offsetLeft - lad.clientWidth / 2 + on.clientWidth / 2;
   fillPersist();
   tick(true);
+}
+// Scroll so the current-set panel sits just above the (fixed) timer bar, measured, not guessed.
+// If the panel is taller than the visible area, keep its bottom (the "세트 완료" button) in view.
+function revealPanel() {
+  const m = document.querySelector('main'), pn = document.querySelector('.panel') || document.querySelector('.ex .card.center') || document.querySelector('.exhead');
+  if (!m || !pn) return;
+  const barH = document.getElementById('tbar')?.offsetHeight || 0;
+  const mr = m.getBoundingClientRect(), r = pn.getBoundingClientRect();
+  const top = mr.top + 6, bottom = mr.bottom - barH - 8;
+  if (r.bottom > bottom) m.scrollTop += r.bottom - bottom;          // bring the complete button above the bar
+  const r2 = pn.getBoundingClientRect();
+  if (r2.top < top && r2.height <= bottom - top) m.scrollTop -= top - r2.top; // whole panel fits: show its top too
 }
 async function fillPersist() {
   const el = document.getElementById('persist'); if (!el) return;
@@ -255,16 +273,16 @@ function workoutView() {
     <div class="wtitle"><b>${esc(s.routineName)}</b><span class="mu" id="elapsed">${fmtTime((Date.now() - s.startedAt) / 1000)}</span></div>
     <button class="btn small" data-a="openFinish">종료</button></header>
   <div class="prog"><i style="width:${pct}%"></i></div>
-  <div class="strip" role="tablist">${s.exercises.map((e, i) => { const d = e.sets.filter((x) => x.done).length; const cls = e.skipped ? 'skip' : d === e.sets.length && d ? 'full' : d ? 'part' : ''; return `<button class="chip ${i === ci ? 'on' : ''} ${cls} ${e.link ? 'lnk' : ''}" data-a="selEx" data-id="${i}">${i + 1}</button>`; }).join('')}
-    <button class="chip" data-a="openExList" aria-label="운동 순서/추가">${icon('list')}</button></div>
+  <div class="strip" role="tablist"><button class="chip lst" data-a="openExList" aria-label="운동 목록 · 순서 변경 · 추가">${icon('list')}</button>${s.exercises.map((e, i) => { const d = e.sets.filter((x) => x.done).length; const cls = e.skipped ? 'skip' : d === e.sets.length && d ? 'full' : d ? 'part' : ''; return `<button class="chip ${i === ci ? 'on' : ''} ${cls} ${e.link ? 'lnk' : ''}" data-a="selEx" data-id="${i}" aria-label="${i + 1}. ${esc(e.snap.ko || e.snap.name)}">${i + 1}</button>`; }).join('')}</div>
   <section class="ex">
     <div class="exhead"><h2>${snapName(ex.snap)}</h2>
-      <p class="mu">${ex.snap.primary.map(esc).join(', ')}${ex.snap.secondary.length ? ` <span class="dim">· ${ex.snap.secondary.map(esc).join(', ')}</span>` : ''}</p>
-      <p class="target">${ex.sets.filter((x) => x.type === 'work').length}세트 × ${range(ex.snap)}회 · RIR ${ex.snap.rir} · 휴식 ${ex.snap.rest}초 <span class="tag">${MODES[ex.snap.mode]}</span></p></div>
+      <p class="target">${ex.snap.primary.map(esc).join(', ')}${ex.snap.secondary.length ? `<span class="dim"> +${ex.snap.secondary.map(esc).join(', ')}</span>` : ''} · ${ex.sets.filter((x) => x.type === 'work').length}×${range(ex.snap)}회 · 휴식 ${ex.snap.rest}초 <span class="tag">${MODES[ex.snap.mode]}</span></p></div>
     ${ex.skipped ? `<div class="card center"><p class="mu">이 운동은 건너뛰었습니다.</p><button class="btn" data-a="unskip">건너뛰기 취소</button></div>` : `
-    ${sug ? `<div class="sug ${sug.type}"><div><b>${sug.type === 'increase' ? '증량 제안' : sug.type === 'reduce' ? '중량 조정 제안' : sug.type === 'manual' ? '수동 모드' : '이번엔 유지'}</b><p>${esc(sug.msg)}</p></div>${sug.type === 'increase' || sug.type === 'reduce' ? `<button class="btn small" data-a="applySug">${ex.sugApplied ? '적용됨' : '적용'}</button>` : ''}</div>` : `<p class="mu small nohist">${anyHistOtherMode ? '운동 방식(중량 기준)이 바뀌어 지난 기록과 비교하지 않습니다.' : '지난 기록이 없습니다. 중량을 직접 입력하면 다음 운동부터 기준이 됩니다.'}</p>`}
-    <div class="sets">${ex.sets.map((st, i) => setRow(ex, st, i, sel)).join('')}</div>
+    ${sug && (sug.type === 'increase' || sug.type === 'reduce') ? `<div class="sug ${sug.type}"><div><b>${sug.type === 'increase' ? '증량 제안' : '중량 조정 제안'}</b><p>${esc(sug.msg)}</p></div><button class="btn small" data-a="applySug">${ex.sugApplied ? '적용됨' : '적용'}</button></div>` : ''}
     ${sel >= 0 ? setPanel(ex, sel) : `<div class="card center"><p><b>모든 세트 완료</b></p>${s.exercises.some((e, i) => i > ci && !e.skipped && e.sets.some((x) => !x.done)) ? '<button class="btn primary big" data-a="nextEx">다음 운동</button>' : '<button class="btn primary big" data-a="openFinish">운동 마무리</button>'}</div>`}
+    <div class="sets" role="list" aria-label="세트 목록"><div class="shead" aria-hidden="true"><span>세트</span><span>지난 기록</span><span>이번 세트</span><span></span></div>${ex.sets.map((st, i) => setRow(ex, st, i, sel)).join('')}</div>
+    ${sug && (sug.type === 'hold' || sug.type === 'manual') ? `<p class="mu small nohist"><b>${sug.type === 'manual' ? '수동 모드' : '이번엔 유지'}</b> · ${esc(sug.msg)}</p>` : ''}
+    ${!sug ? `<p class="mu small nohist">${anyHistOtherMode ? '운동 방식(중량 기준)이 바뀌어 지난 기록과 비교하지 않습니다.' : '지난 기록이 없습니다. 중량을 직접 입력하면 다음 운동부터 기준이 됩니다.'}</p>` : ''}
     <div class="tools">
       <button class="btn" data-a="addSet">${icon('plus')} 세트</button>
       <button class="btn" data-a="delSet" ${ex.sets.length < 2 ? 'disabled' : ''}>${icon('minus')} 세트</button>
@@ -315,9 +333,9 @@ function setPanel(ex, idx) {
     <div class="stepper small"><button class="step" data-a="rStep" data-id="-1" aria-label="반복 감소">${icon('minus')}</button>
       <label class="val"><input data-c="rInput" inputmode="numeric" value="${st.reps ?? ''}" aria-label="반복수"><span>회</span></label>
       <button class="step" data-a="rStep" data-id="1" aria-label="반복 증가">${icon('plus')}</button></div>
-    <div class="rir"><span class="mu">RIR</span>${[0, 1, 2, 3, 4].map((v) => `<button class="chip ${st.rir === v ? 'on' : ''}" data-a="setRir" data-id="${v}">${v === 4 ? '4+' : v}</button>`).join('')}</div>
+    <div class="rir"><span class="rirlab">RIR<small>여유 반복</small></span>${[0, 1, 2, 3, 4].map((v) => `<button class="chip ${st.rir === v ? 'on' : ''}" data-a="setRir" data-id="${v}">${v === 4 ? '4+' : v}</button>`).join('')}</div>
     ${st.done ? `<button class="btn big" data-a="uncomplete">완료 취소</button>` : `<div class="restrow"><span class="mu">이 세트 휴식</span><button class="chip" data-a="restAdj" data-id="-15" aria-label="휴식 15초 감소">−15</button><b>${restFor(ex, st)}초</b><button class="chip" data-a="restAdj" data-id="15" aria-label="휴식 15초 증가">+15</button></div><button class="btn primary big" data-a="complete">${ex.link || active().exercises[active().exercises.indexOf(ex) - 1]?.link ? '세트 완료 · 슈퍼세트' : '세트 완료'}</button>`}
-    <p class="mu small center">${ladderOf(ex) ? '보유 덤벨 목록에서 선택 · 설정에서 변경' : `증감 단위 ${fmtNum(step)}kg · 운동 정보에서 변경`}</p></div>`;
+    </div>`;
 }
 
 // ---- timer bar ----
@@ -499,12 +517,28 @@ function toggle(k, label, note) {
 function closeSheet() { ui.sheet = null; renderSheet(); }
 function renderSheet() {
   const sh = ui.sheet;
-  if (!sh) { $sheet.className = ''; $sheet.innerHTML = ''; document.body.classList.remove('locked'); return; }
+  if (!sh) {
+    const wasOpen = $sheet.className === 'open';
+    $sheet.className = ''; $sheet.innerHTML = ''; document.body.classList.remove('locked'); $app.inert = false;
+    if (wasOpen && opener?.isConnected) opener.focus({ preventScroll: true });
+    opener = null; return;
+  }
+  const opening = $sheet.className !== 'open';
+  if (opening) opener = document.activeElement !== document.body ? document.activeElement : null;
+  // remember what had focus inside the sheet so a re-render doesn't throw keyboard users out
+  const fa = $sheet.contains(document.activeElement) ? document.activeElement : null;
+  const key = fa ? (fa.id ? '#' + fa.id : fa.dataset?.a ? `[data-a="${fa.dataset.a}"]${fa.dataset.id != null ? `[data-id="${CSS.escape(fa.dataset.id)}"]` : ''}` : null) : null;
   const f = SHEETS[sh.type];
   $sheet.className = 'open';
   document.body.classList.add('locked');
-  $sheet.innerHTML = `<div class="scrim" data-a="closeSheet"></div><div class="sheetbox" role="dialog" aria-modal="true"><div class="grab"></div><button class="xbtn" data-a="closeSheet" aria-label="닫기">${icon('x')}</button>${f(sh)}</div>`;
+  $app.inert = true; // background can't be tabbed to or read while the sheet is open
+  $sheet.innerHTML = `<div class="scrim" data-a="closeSheet"></div><div class="sheetbox" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" tabindex="-1"><div class="grab"></div><button class="xbtn" data-a="closeSheet" aria-label="닫기">${icon('x')}</button>${f(sh)}</div>`;
+  const h = $sheet.querySelector('h3'); if (h) h.id = 'sheetTitle';
+  const back = key && $sheet.querySelector(key);
+  if (back) back.focus({ preventScroll: true });
+  else if (opening || !$sheet.contains(document.activeElement)) $sheet.querySelector('.sheetbox').focus({ preventScroll: true });
 }
+let opener = null;
 const chips = (name, n, cur, labels) => `<div class="chips">${Array.from({ length: n }, (_, i) => i + 1).map((v) => `<button class="chip ${cur === v ? 'on' : ''}" data-a="${name}" data-id="${v}">${labels ? labels[v - 1] : v}</button>`).join('')}</div>`;
 
 const SHEETS = {
@@ -562,7 +596,7 @@ const SHEETS = {
     return `<h3>통증 · 불편함 기록</h3>${s.pain.map((p, i) => `<div class="row"><div><b>${esc(p.part)}</b> <span class="mu">강도 ${p.level}/3</span><p class="mu small">${esc(p.note || '')}</p></div><button class="icon-btn" data-a="delPain" data-id="${i}" aria-label="삭제">${icon('x')}</button></div>`).join('')}
     <label class="lab">부위</label><div class="chips wrap">${parts.map((p) => `<button class="chip ${sheetState.pp === p ? 'on' : ''}" data-a="pickPart" data-id="${p}">${p}</button>`).join('')}</div>
     <label class="lab">강도</label>${chips('pickLvl', 3, sheetState.pl, ['약간', '불편', '심함'])}
-    <input id="painNote" placeholder="메모 (선택) 예: 내릴 때 찌릿함" maxlength="120"><button class="btn primary big" data-a="addPain">기록 추가</button>
+    <input id="painNote" placeholder="메모 (선택) 예: 내릴 때 찌릿함" maxlength="120" value="${esc(sheetState.note || '')}"><button class="btn primary big" data-a="addPain">기록 추가</button>
     <p class="mu small">통증이 계속되거나 심하면 운동을 중단하고 전문가와 상담하세요.</p>`;
   },
   picker(sh) {
@@ -597,6 +631,10 @@ const SHEETS = {
     <label class="lab">대체 운동</label><div class="chips wrap">${(e.alts || []).map((id) => `<button type="button" class="chip on" data-a="rmAlt" data-id="${esc(id)}">${esc(S.exercises[id]?.ko || id)} ✕</button>`).join('')}<button type="button" class="chip" data-a="addAlt">${icon('plus')}</button></div>
     <button class="btn primary big" data-a="saveEx">저장</button>${!e.isNew && e.custom ? '<button class="btn big danger" data-a="delEx">이 운동 삭제</button>' : ''}`;
   },
+  saveFail(sh) {
+    return `<h3>저장하지 못했어요</h3><p class="mu">기기 저장 공간이 부족하거나 브라우저가 저장을 막았습니다. 운동은 <b>종료되지 않았고</b> 지금까지의 기록은 화면에 그대로 있어요.</p>
+    <button class="btn primary big" data-a="exportJson">JSON 백업 내보내기 (권장)</button><button class="btn big" data-a="retryFinish">다시 저장 시도</button><button class="btn big" data-a="closeSheet">운동 계속하기</button>`;
+  },
   confirm(sh) {
     return `<h3>${esc(sh.title)}</h3><p class="mu">${esc(sh.msg)}</p><button class="btn big ${sh.danger ? 'danger' : 'primary'}" data-a="confirmOk">${esc(sh.ok || '확인')}</button><button class="btn big" data-a="closeSheet">취소</button>`;
   },
@@ -607,7 +645,8 @@ const SHEETS = {
     <li>운동 중에는 화면 켜짐 유지(Wake Lock)를 사용해 잠김을 줄입니다. ${'wakeLock' in navigator ? '' : '(이 브라우저는 미지원)'}</li></ul><button class="btn big" data-a="closeSheet">확인</button>`;
   },
 };
-const sheetState = { pp: null, pl: 2 };
+const sheetState = { pp: null, pl: 2, note: '' };
+const keepPainNote = () => { const el = document.getElementById('painNote'); if (el) sheetState.note = el.value; };
 function plateOut(r) {
   if (r.error) return `<p class="mu">${r.error}</p>`;
   const lst = r.perSide.length ? r.perSide.map((p) => `<span class="plate p${String(p.plate).replace('.', '_')}"><b>${fmtNum(p.plate)}</b> × ${p.count}</span>`).join('') : '<span class="mu">바만 사용</span>';
@@ -678,7 +717,7 @@ const A = {
   openStart: (id) => { ui.sheet = { type: 'start', rid: id, cond: 3, fat: 3, min: 0 }; renderSheet(); },
   sCond: (id) => { ui.sheet.cond = +id; renderSheet(); }, sFat: (id) => { ui.sheet.fat = +id; renderSheet(); }, sMin: (id) => { ui.sheet.min = +id; renderSheet(); },
   doStart: () => { const sh = ui.sheet; startSession(sh.rid, { cond: sh.cond, fat: sh.fat, minutes: sh.min }); },
-  resume: () => { ui.inWorkout = true; wakeLock(true); render(); },
+  resume: () => { ui.inWorkout = true; ui.focusPanel = true; wakeLock(true); render(); },
   exitWorkout: () => { ui.inWorkout = false; wakeLock(false); render(); },
   // workout
   selEx: (id) => { ui.focusPanel = true; const s = active(); s.curEx = +id; ui.setIdx = null; save(); render(); },
@@ -731,13 +770,20 @@ const A = {
   pickReplace: () => { ui.pickCtx = 'session-replace'; ui.sheet = { type: 'picker', q: '' }; renderSheet(); },
   openPlate: () => { ui.sheet = { type: 'plate' }; renderSheet(); },
   timerInfo: () => { ui.sheet = { type: 'info' }; renderSheet(); },
-  openPain: () => { sheetState.pp = null; sheetState.pl = 2; ui.sheet = { type: 'pain' }; renderSheet(); },
-  pickPart: (id) => { sheetState.pp = id; renderSheet(); }, pickLvl: (id) => { sheetState.pl = +id; renderSheet(); },
-  addPain: () => { if (!sheetState.pp) return toast('부위를 선택하세요', 'bad'); active().pain.push({ part: sheetState.pp, level: sheetState.pl, note: document.getElementById('painNote').value.trim(), at: Date.now() }); sheetState.pp = null; save(); renderSheet(); render(); },
+  openPain: () => { sheetState.pp = null; sheetState.pl = 2; sheetState.note = ''; ui.sheet = { type: 'pain' }; renderSheet(); },
+  pickPart: (id) => { keepPainNote(); sheetState.pp = id; renderSheet(); }, pickLvl: (id) => { keepPainNote(); sheetState.pl = +id; renderSheet(); },
+  addPain: () => { if (!sheetState.pp) return toast('부위를 선택하세요', 'bad'); active().pain.push({ part: sheetState.pp, level: sheetState.pl, note: document.getElementById('painNote').value.trim(), at: Date.now() }); sheetState.pp = null; sheetState.note = ''; save(); renderSheet(); render(); },
   delPain: (id) => { active().pain.splice(+id, 1); save(); renderSheet(); render(); },
   openFinish: () => { ui.sheet = { type: 'finish', sat: 3, note: '' }; renderSheet(); },
   sSat: (id) => { ui.sheet.note = document.getElementById('postNote')?.value ?? ''; ui.sheet.sat = +id; renderSheet(); },
-  doFinish: () => { const note = document.getElementById('postNote').value.trim(); const s = finishSession({ satisfaction: ui.sheet.sat, note }); if (s) { ui.sheet = { type: 'summary', sid: s.id }; render(); } },
+  doFinish: () => {
+    const note = document.getElementById('postNote').value.trim();
+    const s = finishSession({ satisfaction: ui.sheet.sat, note });
+    if (!s) return;
+    if (s.error) { ui.sheet = { type: 'saveFail', sat: ui.sheet.sat, note }; renderSheet(); return; }
+    ui.sheet = { type: 'summary', sid: s.id }; render();
+  },
+  retryFinish: () => { ui.sheet = { type: 'finish', sat: ui.sheet.sat, note: ui.sheet.note }; renderSheet(); },
   discard: () => confirmSheet('기록 없이 종료할까요?', '이번 운동은 저장되지 않습니다.', '종료', () => { S.sessions = S.sessions.filter((s) => s.id !== S.activeId); S.activeId = null; S.timer = null; save(); ui.inWorkout = false; wakeLock(false); closeSheet(); render(); }),
   // timer
   tPause: () => { timer.pause(); render(); }, tResume: () => { timer.resume(); render(); }, tReset: () => { timer.reset(); render(); },
@@ -816,6 +862,8 @@ document.addEventListener('change', (ev) => {
     // the user tapped next (usually "세트 완료"); replacing the DOM would swallow that tap.
     const ex = cur(), i = selectedSet(ex); if (i < 0) return;
     const key = c === 'wInput' ? 'weight' : 'reps', v = num(el.value);
+    const next = el.value.trim() === '' ? (key === 'weight' ? null : 0) : key === 'weight' ? v : Math.round(v);
+    if (next === ex.sets[i][key] || (Number.isNaN(next) && el.value.trim() === '')) return; // unchanged: no write
     if (el.value.trim() === '') ex.sets[i][key] = key === 'weight' ? null : 0;
     else if (!Number.isFinite(v) || v < 0 || v > (key === 'weight' ? 1000 : 200)) { toast('올바른 숫자를 입력하세요', 'bad'); el.value = ex.sets[i][key] != null && ex.sets[i][key] !== 0 ? fmtNum(ex.sets[i][key]) : ''; return; }
     else ex.sets[i][key] = key === 'weight' ? v : Math.round(v);
@@ -857,7 +905,12 @@ document.addEventListener('focusin', (ev) => { const el = ev.target; if (el.matc
 document.addEventListener('focusout', (ev) => { if (ev.target.matches?.(NUMF)) delete ev.target.dataset.fresh; });
 for (const t of ['mouseup', 'touchend', 'click']) document.addEventListener(t, (ev) => { const el = ev.target; if (el.matches?.(NUMF) && el.dataset.fresh) { if (t !== 'click') ev.preventDefault(); try { el.select(); } catch (_) {} if (t === 'click') delete el.dataset.fresh; } }, { capture: true, passive: false });
 document.addEventListener('toggle', (ev) => { if (ev.target.dataset?.i === 'guide') ui.guideOpen = ev.target.open; }, true);
-document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && ui.sheet) closeSheet(); if (ev.key === 'Enter' && ev.target.matches('input[data-c]')) ev.target.blur(); });
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Tab' && ui.sheet) { // keep Tab inside the open sheet
+    const f = [...$sheet.querySelectorAll('button:not([disabled]), input, textarea, select, [tabindex="0"]')].filter((e) => e.offsetParent !== null);
+    if (f.length) { const first = f[0], last = f[f.length - 1]; if (ev.shiftKey && (document.activeElement === first || !$sheet.contains(document.activeElement))) { ev.preventDefault(); last.focus(); } else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); } }
+  }
+  if (ev.key === 'Escape' && ui.sheet) closeSheet(); if (ev.key === 'Enter' && ev.target.matches('input[data-c]')) ev.target.blur(); });
 
 // Another tab / the installed app changed the data: adopt it instead of overwriting it with our stale copy.
 window.addEventListener('storage', (ev) => {
@@ -873,7 +926,7 @@ load();
   try { if (navigator.storage?.persist) await navigator.storage.persist(); } catch (_) {}
 })();
 render();
-if (active()) { ui.inWorkout = true; wakeLock(true); render(); }
+if (active()) { ui.inWorkout = true; ui.focusPanel = true; wakeLock(true); render(); }
 if (status.corrupt) toast('저장된 데이터를 읽지 못해 새로 시작했습니다. 원본은 보관되어 있습니다.', 'bad');
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
