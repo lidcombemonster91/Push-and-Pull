@@ -212,9 +212,21 @@ export function validateBackup(o) {
   if (!d.exercises || typeof d.exercises !== 'object' || Array.isArray(d.exercises)) return '운동 라이브러리 데이터가 손상되었습니다.';
   if (!d.routines || typeof d.routines !== 'object' || Array.isArray(d.routines)) return '루틴 데이터가 손상되었습니다.';
   if (!Array.isArray(d.sessions)) return '운동 기록 데이터가 손상되었습니다.';
+  const isArr = Array.isArray, str = (v) => typeof v === 'string';
+  for (const [id, e] of Object.entries(d.exercises)) {
+    if (!e || !str(e.name) || !str(e.ko) || !isArr(e.primary) || !MODES[e.mode] || ![e.sets, e.repMin, e.repMax, e.rest, e.inc].every(Number.isFinite)) return `운동 라이브러리 중 손상된 항목이 있습니다 (${String(id).slice(0, 30)}).`;
+  }
+  for (const r of Object.values(d.routines)) {
+    if (!r || !str(r.name) || !isArr(r.items) || r.items.some((i) => !i || !str(i.exerciseId) || ![i.sets, i.repMin, i.repMax, i.rest].every(Number.isFinite))) return '루틴 데이터 중 손상된 항목이 있습니다.';
+  }
+  if (d.routineOrder != null && !isArr(d.routineOrder)) return '루틴 순서 데이터가 손상되었습니다.';
   for (const s of d.sessions) {
-    if (!s || typeof s.id !== 'string' || typeof s.startedAt !== 'number' || !Array.isArray(s.exercises)) return '운동 기록 중 손상된 항목이 있습니다.';
-    for (const e of s.exercises) if (!e || !e.snap || !Array.isArray(e.sets)) return '운동 기록 중 손상된 항목이 있습니다.';
+    if (!s || !str(s.id) || !Number.isFinite(s.startedAt) || !isArr(s.exercises) || !['done', 'active'].includes(s.status)) return '운동 기록 중 손상된 항목이 있습니다.';
+    for (const e of s.exercises) {
+      if (!e || !e.snap || !str(e.snap.name) || !MODES[e.snap.mode] || !isArr(e.sets) || !isArr(e.snap.primary || []) || !isArr(e.snap.secondary || [])) return '운동 기록 중 손상된 항목이 있습니다.';
+      if (e.sets.some((x) => !x || !['work', 'warmup'].includes(x.type) || (x.weight != null && !Number.isFinite(x.weight)) || (x.reps != null && !Number.isFinite(x.reps)))) return '세트 기록 중 손상된 항목이 있습니다.';
+    }
+    if (s.pain != null && !isArr(s.pain)) return '통증 기록이 손상되었습니다.';
   }
   return null;
 }

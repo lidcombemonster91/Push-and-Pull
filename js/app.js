@@ -207,11 +207,11 @@ function todayView() {
     <div><span class="big">${fmtVol(wk.v)}</span><span class="mu">총 볼륨</span></div>
   </section>
   <h2>루틴 선택</h2>
-  <div class="list">${S.routineOrder.map((id) => { const r = S.routines[id]; return `<button class="row routine ${id === next ? 'next' : ''}" data-a="openStart" data-id="${id}" ${a ? 'disabled' : ''}>
+  <div class="list">${S.routineOrder.map((id) => { const r = S.routines[id]; return `<button class="row routine ${id === next ? 'next' : ''}" data-a="openStart" data-id="${esc(id)}" ${a ? 'disabled' : ''}>
       <div><b>${esc(r.name)}</b><p class="mu">${esc(r.desc || '')} · ${r.items.length}종목 · 약 ${Math.round(L.estimateSec(r.items) / 60)}분</p></div>
       ${id === next ? '<span class="tag">다음 순서</span>' : icon('chev')}</button>`; }).join('') || '<p class="empty">루틴이 없습니다. Routines 탭에서 새 루틴을 만드세요.</p>'}</div>
   ${a ? '<p class="mu small">진행 중인 운동을 끝내면 새 운동을 시작할 수 있습니다.</p>' : ''}
-  ${last ? `<h2>최근 운동</h2><button class="row" data-a="openSession" data-id="${last.id}"><div><b>${esc(last.routineName)}</b><p class="mu">${fmtDate(last.startedAt)} · ${fmtVol(L.sessionStats(last, S.settings.bodyweight).volume)}</p></div>${icon('chev')}</button>` : '<p class="empty">아직 기록이 없습니다. 루틴을 선택해 첫 운동을 시작하세요.<br>첫 운동에서는 중량을 직접 입력하고, 다음부터 지난 기록이 자동으로 채워집니다.</p>'}`;
+  ${last ? `<h2>최근 운동</h2><button class="row" data-a="openSession" data-id="${esc(last.id)}"><div><b>${esc(last.routineName)}</b><p class="mu">${fmtDate(last.startedAt)} · ${fmtVol(L.sessionStats(last, S.settings.bodyweight).volume)}</p></div>${icon('chev')}</button>` : '<p class="empty">아직 기록이 없습니다. 루틴을 선택해 첫 운동을 시작하세요.<br>첫 운동에서는 중량을 직접 입력하고, 다음부터 지난 기록이 자동으로 채워집니다.</p>'}`;
 }
 
 // ================= Workout =================
@@ -265,6 +265,7 @@ function guideHTML(e) {
   return `<dl class="guide">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}${alts.length ? `<dt>대체 운동</dt><dd>${alts.map((a) => esc(a.ko)).join(' · ')}</dd>` : ''}</dl>`;
 }
 
+const setCur = (st) => `${st.weight != null ? `${fmtNum(st.weight)}<i>kg</i>` : '<i>–</i>'} × ${st.reps || '–'}${st.rir != null ? `<i> @${st.rir}</i>` : ''}`;
 function setRow(ex, st, i, sel) {
   const p = prevFor(ex, i);
   const wi = ex.sets.slice(0, i).filter((s) => s.type === 'work').length + 1;
@@ -272,7 +273,7 @@ function setRow(ex, st, i, sel) {
     return `<button class="srow ${st.done ? 'done' : ''} ${i === sel ? 'sel' : ''} ${st.type}" data-a="selSet" data-id="${i}">
     <span class="sn">${label}</span>
     <span class="prev">${p ? `${fmtNum(p.weight)}×${p.reps}` : '–'}</span>
-    <span class="cur">${st.weight != null ? `${fmtNum(st.weight)}<i>kg</i>` : '<i>–</i>'} × ${st.reps || '–'}${st.rir != null ? `<i> @${st.rir}</i>` : ''}</span>
+    <span class="cur">${setCur(st)}</span>
     <span class="ck">${st.done ? (st.pr ? 'PR' : icon('check')) : ''}</span></button>`;
 }
 
@@ -340,7 +341,7 @@ document.addEventListener('visibilitychange', () => {
 function routinesView() {
   if (ui.routineId && S.routines[ui.routineId]) return routineEditor(S.routines[ui.routineId]);
   return `<header class="top"><h1>Routines</h1><button class="btn small" data-a="newRoutine">${icon('plus')} 새 루틴</button></header>
-  <div class="list">${S.routineOrder.map((id) => { const r = S.routines[id]; return `<button class="row" data-a="openRoutine" data-id="${id}"><div><b>${esc(r.name)}</b><p class="mu">${esc(r.desc || '')} · ${r.items.length}종목</p><p class="mu small">${r.items.slice(0, 4).map((i) => esc(S.exercises[i.exerciseId]?.ko || '?')).join(' · ')}${r.items.length > 4 ? ' …' : ''}</p></div>${icon('chev')}</button>`; }).join('') || '<p class="empty">루틴이 없습니다.</p>'}</div>
+  <div class="list">${S.routineOrder.map((id) => { const r = S.routines[id]; return `<button class="row" data-a="openRoutine" data-id="${esc(id)}"><div><b>${esc(r.name)}</b><p class="mu">${esc(r.desc || '')} · ${r.items.length}종목</p><p class="mu small">${r.items.slice(0, 4).map((i) => esc(S.exercises[i.exerciseId]?.ko || '?')).join(' · ')}${r.items.length > 4 ? ' …' : ''}</p></div>${icon('chev')}</button>`; }).join('') || '<p class="empty">루틴이 없습니다.</p>'}</div>
   <h2>운동 라이브러리</h2>
   <div class="list"><button class="row" data-a="openLib"><div><b>운동 정보 보기 · 편집</b><p class="mu">${Object.keys(S.exercises).length}개 운동 · 직접 만든 운동 ${Object.values(S.exercises).filter((e) => e.custom).length}개</p></div>${icon('chev')}</button></div>`;
 }
@@ -375,13 +376,13 @@ function historyView() {
   <section class="cal"><div class="calh"><button class="icon-btn" data-a="calMonth" data-id="-1" aria-label="이전 달">${icon('back')}</button><b>${y}년 ${mo + 1}월 <span class="mu">· ${monthCount}회</span></b><button class="icon-btn" data-a="calMonth" data-id="1" aria-label="다음 달">${icon('chev')}</button></div>
   <div class="cg">${DAYS.map((d) => `<span>${d}</span>`).join('')}${cells}</div></section>
   ${ui.day ? `<p class="mu small">${ui.day} <button class="link" data-a="pickDay" data-id="">전체 보기</button></p>` : ''}
-  <div class="list">${list.map((s) => { const t = L.sessionStats(s, S.settings.bodyweight); return `<button class="row" data-a="openSession" data-id="${s.id}"><div><b>${esc(s.routineName)}</b> ${t.prs ? `<span class="tag pr">PR ${t.prs}</span>` : ''}<p class="mu">${fmtDate(s.startedAt)} ${fmtClock(s.startedAt)} · ${Math.round(t.durationSec / 60)}분 · ${t.sets}세트 · ${fmtVol(t.volume)}</p></div>${icon('chev')}</button>`; }).join('') || `<p class="empty">${all.length ? '이 기간에 기록이 없습니다.' : '아직 완료한 운동이 없습니다.'}</p>`}</div>`;
+  <div class="list">${list.map((s) => { const t = L.sessionStats(s, S.settings.bodyweight); return `<button class="row" data-a="openSession" data-id="${esc(s.id)}"><div><b>${esc(s.routineName)}</b> ${t.prs ? `<span class="tag pr">PR ${t.prs}</span>` : ''}<p class="mu">${fmtDate(s.startedAt)} ${fmtClock(s.startedAt)} · ${Math.round(t.durationSec / 60)}분 · ${t.sets}세트 · ${fmtVol(t.volume)}</p></div>${icon('chev')}</button>`; }).join('') || `<p class="empty">${all.length ? '이 기간에 기록이 없습니다.' : '아직 완료한 운동이 없습니다.'}</p>`}</div>`;
 }
 function sessionDetail() {
   const s = S.sessions.find((x) => x.id === ui.sessionId);
   if (!s) { ui.sessionId = null; return historyView(); }
   const t = L.sessionStats(s, S.settings.bodyweight);
-  return `<header class="top"><button class="icon-btn" data-a="backHistory" aria-label="뒤로">${icon('back')}</button><h1>${esc(s.routineName)}</h1><button class="btn small danger" data-a="delSession" data-id="${s.id}">삭제</button></header>
+  return `<header class="top"><button class="icon-btn" data-a="backHistory" aria-label="뒤로">${icon('back')}</button><h1>${esc(s.routineName)}</h1><button class="btn small danger" data-a="delSession" data-id="${esc(s.id)}">삭제</button></header>
   <p class="mu">${fmtDate(s.startedAt)} ${fmtClock(s.startedAt)} – ${s.endedAt ? fmtClock(s.endedAt) : ''}</p>
   <section class="week"><div><span class="big">${Math.round(t.durationSec / 60)}분</span><span class="mu">운동 시간</span></div><div><span class="big">${t.sets}</span><span class="mu">세트</span></div><div><span class="big">${fmtVol(t.volume)}</span><span class="mu">총 볼륨</span></div></section>
   ${s.pre ? `<p class="mu small">운동 전 컨디션 ${s.pre.condition}/5 · 피로도 ${s.pre.fatigue}/5${s.timeLimit ? ` · 시간 제한 ${s.timeLimit}분` : ''}${s.post?.satisfaction ? ` · 만족도 ${s.post.satisfaction}/5` : ''}</p>` : ''}
@@ -771,12 +772,16 @@ document.addEventListener('change', (ev) => {
   const el = ev.target, c = el.dataset.c;
   if (!c) return;
   if (c === 'wInput' || c === 'rInput') {
+    // NOTE: no full render here. This handler runs on blur, i.e. between touchstart and click of whatever
+    // the user tapped next (usually "세트 완료"); replacing the DOM would swallow that tap.
     const ex = cur(), i = selectedSet(ex); if (i < 0) return;
-    const v = num(el.value);
-    if (el.value.trim() === '') { ex.sets[i][c === 'wInput' ? 'weight' : 'reps'] = c === 'wInput' ? null : 0; }
-    else if (!Number.isFinite(v) || v < 0 || v > (c === 'wInput' ? 1000 : 200)) toast('올바른 숫자를 입력하세요', 'bad');
-    else ex.sets[i][c === 'wInput' ? 'weight' : 'reps'] = c === 'wInput' ? v : Math.round(v);
-    save(); render();
+    const key = c === 'wInput' ? 'weight' : 'reps', v = num(el.value);
+    if (el.value.trim() === '') ex.sets[i][key] = key === 'weight' ? null : 0;
+    else if (!Number.isFinite(v) || v < 0 || v > (key === 'weight' ? 1000 : 200)) { toast('올바른 숫자를 입력하세요', 'bad'); el.value = ex.sets[i][key] != null && ex.sets[i][key] !== 0 ? fmtNum(ex.sets[i][key]) : ''; return; }
+    else ex.sets[i][key] = key === 'weight' ? v : Math.round(v);
+    save();
+    // patch only the text of the selected row's value; never replace a tappable element
+    const cell = document.querySelector('.srow.sel .cur'); if (cell) cell.innerHTML = setCur(ex.sets[i]);
   } else if (c === 'formBreak') { cur().formBreak = el.checked; save(); }
   else if (c === 'rName') { S.routines[ui.routineId].name = el.value.trim() || '이름 없는 루틴'; S.routines[ui.routineId].updatedAt = Date.now(); save(); }
   else if (c === 'rDesc') { S.routines[ui.routineId].desc = el.value.trim(); save(); }
@@ -805,8 +810,20 @@ document.addEventListener('input', (ev) => {
   else if (i === 'pickQ' || i === 'libQ') { ui.sheet.q = el.value; document.getElementById('pickList').innerHTML = pickList(el.value, i === 'libQ'); }
   else if (i === 'plate') { ui.sheet.w = el.value; document.getElementById('plOut').innerHTML = plateOut(L.plateCalc(num(el.value), S.settings.barWeight, S.settings.plates)); }
 });
+// Number fields: first tap selects the whole value so typing replaces it (caret placement is suppressed once).
+const NUMF = 'input[data-c=wInput], input[data-c=rInput]';
+document.addEventListener('focusin', (ev) => { const el = ev.target; if (el.matches?.(NUMF)) { el.dataset.fresh = '1'; setTimeout(() => { try { el.select(); } catch (_) {} }, 0); } });
+document.addEventListener('focusout', (ev) => { if (ev.target.matches?.(NUMF)) delete ev.target.dataset.fresh; });
+for (const t of ['mouseup', 'touchend', 'click']) document.addEventListener(t, (ev) => { const el = ev.target; if (el.matches?.(NUMF) && el.dataset.fresh) { if (t !== 'click') ev.preventDefault(); try { el.select(); } catch (_) {} if (t === 'click') delete el.dataset.fresh; } }, { capture: true, passive: false });
 document.addEventListener('toggle', (ev) => { if (ev.target.dataset?.i === 'guide') ui.guideOpen = ev.target.open; }, true);
 document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && ui.sheet) closeSheet(); if (ev.key === 'Enter' && ev.target.matches('input[data-c]')) ev.target.blur(); });
+
+// Another tab / the installed app changed the data: adopt it instead of overwriting it with our stale copy.
+window.addEventListener('storage', (ev) => {
+  if (ev.key !== 'pp:v1' || !ev.newValue) return;
+  const typing = document.activeElement?.matches?.('input, textarea');
+  load(); if (!typing) render(); else { const a = active(); ui.inWorkout = ui.inWorkout && !!a; }
+});
 
 // ================= boot =================
 load();

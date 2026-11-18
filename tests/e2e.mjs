@@ -70,6 +70,16 @@ await A('tResume'); await page.waitForTimeout(2200); assert.notEqual(await page.
 await A('tReset'); assert.match(await page.textContent('#tleft'), /01:4[45]/); ok('reset restores full duration');
 await A('tStop'); assert.equal((await S()).timer, null); ok('skip clears timer');
 
+// REGRESSION: typing a weight then tapping "세트 완료" once (keyboard still open) must complete the set
+await A('selSet', 2); await page.tap('[data-c=wInput]'); await page.keyboard.type('31'); await page.tap('[data-a=complete]'); await page.waitForTimeout(150);
+{ const x = (await S()).sessions[0].exercises[0].sets[2]; assert.deepEqual([x.done, x.weight], [true, 31]); } ok('REGRESSION: one tap on complete right after typing weight completes the set (no lost tap)');
+await page.tap('[data-a=selSet][data-id="2"]'); await A('uncomplete'); await setInput('[data-c=wInput]', ''); await A('rStep', 1); await page.tap('[data-c=wInput]'); await page.keyboard.type('22'); await page.tap('[data-a=rStep][data-id="1"]'); await page.waitForTimeout(100);
+assert.equal((await S()).sessions[0].exercises[0].sets[2].weight, 22); ok('typing weight then tapping a stepper keeps both the typed value and the tap');
+await page.tap('[data-c=wInput]'); await page.keyboard.type('25'); await page.tap('[data-a=selSet][data-id="0"]'); await page.waitForTimeout(100);
+assert.equal(await page.locator('.srow.sel .sn').textContent(), '1'); assert.equal((await S()).sessions[0].exercises[0].sets[2].weight, 25); ok('typing weight then tapping ANOTHER set row: tap is not lost and the typed value is saved to the right set');
+await A('selSet', 2); await setInput('[data-c=wInput]', '');
+await setInput('[data-c=wInput]', ''); assert.equal((await S()).sessions[0].exercises[0].sets[2].weight, null); ok('clearing the weight field stores empty, not 0');
+await A('tStop');
 // uncomplete, add/remove, warmup
 await A('selSet', 0); await A('uncomplete'); assert.equal((await S()).sessions[0].exercises[0].sets[0].done, false); ok('uncomplete a set');
 await A('complete');

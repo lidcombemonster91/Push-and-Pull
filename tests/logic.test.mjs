@@ -164,3 +164,16 @@ test('recoveryAdvice: rest after 3 straight days, deload on fatigue / 6 weeks / 
   const meh = [s(2, null, { satisfaction: 2 }), s(9, null, { satisfaction: 1 }), s(16, null, { satisfaction: 2 })];
   assert.equal(L.recoveryAdvice(meh, now)[0].level, 'deload');
 });
+
+test('validateBackup: structurally broken data that would crash rendering is rejected', () => {
+  const sess = (over = {}) => ({ id: 's', startedAt: 1, status: 'done', exercises: [{ snap: { name: 'X', mode: 'total', primary: ['가슴'] }, sets: [{ type: 'work', weight: 20, reps: 5 }] }], ...over });
+  const ex = { name: 'A', ko: '에이', primary: ['가슴'], mode: 'total', sets: 3, repMin: 8, repMax: 12, rest: 60, inc: 2 };
+  const mk = (d = {}) => ({ app: L.APP_ID, schema: 1, data: { exercises: { a: ex }, routines: { r: { name: 'R', items: [{ exerciseId: 'a', sets: 3, repMin: 8, repMax: 12, rest: 60 }] } }, sessions: [sess()], ...d } });
+  assert.equal(L.validateBackup(mk()), null);
+  assert.ok(L.validateBackup(mk({ sessions: [sess({ status: 'weird' })] })));
+  assert.ok(L.validateBackup(mk({ sessions: [sess({ exercises: [{ snap: { name: 'X', mode: 'total', primary: 'chest' }, sets: [] }] })] })), 'primary must be an array');
+  assert.ok(L.validateBackup(mk({ sessions: [sess({ exercises: [{ snap: { name: 'X', mode: 'nope', primary: [] }, sets: [] }] })] })), 'unknown weight mode');
+  assert.ok(L.validateBackup(mk({ sessions: [sess({ exercises: [{ snap: { name: 'X', mode: 'total', primary: [] }, sets: [{ type: 'work', weight: 'abc', reps: 5 }] }] })] })), 'non-numeric weight');
+  assert.ok(L.validateBackup(mk({ exercises: { a: { ...ex, primary: null } } })));
+  assert.ok(L.validateBackup(mk({ routines: { r: { name: 'R', items: [null] } } })));
+});

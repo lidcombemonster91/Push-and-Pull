@@ -4,8 +4,10 @@
 
 ```bash
 npm run serve        # http://localhost:4173  (아무 정적 서버나 가능, 예: python3 -m http.server)
-npm test             # 순수 로직 단위 테스트 (16)
-npm run e2e          # Playwright로 iPhone 뷰포트에서 실제 앱 조작 (76 체크, `npm i -D playwright` 필요)
+npm test             # 순수 로직 단위 테스트 (17)
+npm run e2e          # Playwright로 iPhone 뷰포트에서 실제 앱 조작 (80 체크, `npm i -D playwright` 필요)
+npm run robust       # 두 탭 동기화, 저장소 차단/용량 초과, 빈 데이터 등 예외 상황 (9 체크)
+npm run verify       # 위 세 가지 전부
 ```
 iPhone: Safari에서 열기 → 공유 → **홈 화면에 추가**. 오프라인 동작(Service Worker).
 

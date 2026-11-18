@@ -1,6 +1,6 @@
 :root {
   --bg: #0c0d0f; --s1: #15171a; --s2: #1e2125; --s3: #282c31; --line: #2a2e33;
-  --tx: #ece9e2; --mu: #8b9098; --dim: #5d636b;
+  --tx: #ece9e2; --mu: #8b9098; --dim: #7d838c;
   --amber: #ffb02e; --ok: #56d3b0; --bad: #ff6b5e;
   --r: 18px; --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
@@ -93,7 +93,7 @@ input.mini { width: 80px; text-align: right; flex: none; } input.mid { width: 55
 .wtitle { flex: 1; display: flex; flex-direction: column; min-width: 0; } .wtitle b { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .wtitle span { font-variant-numeric: tabular-nums; font-size: 13px; }
 .prog { height: 4px; background: var(--s2); border-radius: 4px; margin: 12px 0; overflow: hidden; } .prog i { display: block; height: 100%; background: var(--tx); border-radius: 4px; transition: width .3s; }
 .strip { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; } .strip::-webkit-scrollbar { display: none; }
-.strip .chip { min-width: 42px; height: 42px; padding: 0; flex: none; position: relative; color: var(--mu); }
+.strip .chip { min-width: 44px; height: 44px; padding: 0; flex: none; position: relative; color: var(--mu); }
 .strip .chip.part { color: var(--tx); box-shadow: inset 0 -3px 0 var(--amber); } .strip .chip.full { box-shadow: inset 0 -3px 0 var(--ok); color: var(--tx); } .strip .chip.skip { text-decoration: line-through; opacity: .5; }
 .strip .chip.on { color: #111; }
 .exhead { margin: 14px 0 12px; } .exhead h2 { color: var(--tx); font-size: 25px; margin: 0 0 4px; letter-spacing: -.03em; font-weight: 750; }

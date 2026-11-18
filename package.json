@@ -1,2 +1,13 @@
-{ "name": "push-and-pull", "version": "1.0.0", "private": true, "type": "module",
-  "scripts": { "test": "node --test tests/logic.test.mjs", "serve": "node tests/serve.mjs", "e2e": "node tests/e2e.mjs" } }
+{
+  "name": "push-and-pull",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/logic.test.mjs",
+    "serve": "node tests/serve.mjs",
+    "e2e": "node tests/e2e.mjs",
+    "robust": "node tests/robustness.mjs",
+    "verify": "npm test && node tests/e2e.mjs && node tests/robustness.mjs"
+  }
+}
