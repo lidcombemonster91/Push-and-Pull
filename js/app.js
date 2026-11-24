@@ -138,14 +138,12 @@ function completeSet(ex, idx) {
     for (const o of sess.exercises) if (o.exerciseId === ex.exerciseId) for (const s of o.sets) if (s !== st && s.done && s.type === 'work') { maxW = Math.max(maxW, s.weight || 0); best1 = Math.max(best1, L.e1rm(s.weight, s.reps)); }
     if (b.any && st.weight > 0 && (st.weight > maxW || L.e1rm(st.weight, st.reps) > best1)) { st.pr = true; toast('개인 최고 기록 달성!', 'pr'); buzz([40, 60, 40]); }
   }
-  // Carry the weight you just used to later, untouched work sets (empty first-timers, or flat history defaults),
-  // so you only adjust up/down from the last weight instead of starting from 0 again.
+  // Later work sets follow the weight you JUST did (20 → 25 → next starts at 25),
+  // except a set whose weight you already set by hand before reaching it.
   if (st.type === 'work' && st.weight > 0) {
     for (let j = idx + 1; j < ex.sets.length; j++) {
       const n = ex.sets[j];
-      if (n.done || n.type !== 'work') continue;
-      const nd = n.def ?? null, sd = st.def ?? null;
-      if ((n.weight ?? null) === nd && nd === sd && st.weight !== sd) n.weight = st.weight;
+      if (!n.done && n.type === 'work' && !n.touched) n.weight = st.weight;
     }
   }
   const rest = restFor(ex, st);
@@ -726,11 +724,12 @@ const A = {
   selSet: (id) => { ui.focusPanel = true; ui.setIdx = +id; render(); },
   wStep: (id) => {
     const ex = cur(), i = selectedSet(ex), st = ex.sets[i], lad = ladderOf(ex);
+    st.touched = true;
     if (lad) { const nw = L.ladderStep(lad, st.weight, +id > 0 ? 1 : -1); if (nw == null) return toast(+id > 0 ? '보유한 덤벨 중 가장 무거운 무게예요' : '보유한 덤벨 중 가장 가벼운 무게예요'); st.weight = nw; }
     else st.weight = Math.max(0, L.round025((st.weight ?? 0) + +id * ex.snap.inc));
     save(); render();
   },
-  pickW: (id) => { const ex = cur(), st = ex.sets[selectedSet(ex)]; st.weight = +id; save(); render(); },
+  pickW: (id) => { const ex = cur(), st = ex.sets[selectedSet(ex)]; st.weight = +id; st.touched = true; save(); render(); },
   rStep: (id) => { const ex = cur(), st = ex.sets[selectedSet(ex)]; st.reps = clamp((st.reps || 0) + +id, 0, 100); save(); render(); },
   setRir: (id) => { const ex = cur(), st = ex.sets[selectedSet(ex)]; st.rir = +id; save(); render(); },
   complete: () => { const ex = cur(); completeSet(ex, selectedSet(ex)); },
@@ -867,6 +866,7 @@ document.addEventListener('change', (ev) => {
     if (el.value.trim() === '') ex.sets[i][key] = key === 'weight' ? null : 0;
     else if (!Number.isFinite(v) || v < 0 || v > (key === 'weight' ? 1000 : 200)) { toast('올바른 숫자를 입력하세요', 'bad'); el.value = ex.sets[i][key] != null && ex.sets[i][key] !== 0 ? fmtNum(ex.sets[i][key]) : ''; return; }
     else ex.sets[i][key] = key === 'weight' ? v : Math.round(v);
+    if (key === 'weight') ex.sets[i].touched = true;
     save();
     // patch only the text of the selected row's value; never replace a tappable element
     const cell = document.querySelector('.srow.sel .cur'); if (cell) cell.innerHTML = setCur(ex.sets[i]);

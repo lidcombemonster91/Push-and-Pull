@@ -90,7 +90,13 @@ const errs = [];
     S.sessions.push({ id: 'h', routineId: 'r-push', routineName: 'Push Day', startedAt: Date.now() - 864e5, endedAt: Date.now() - 864e5 + 1e6, status: 'done', pre: null, post: null, pain: [], curEx: 0, exercises: [{ id: 'he', exerciseId: 'incline-db-press', snap, skipped: false, formBreak: false, note: '', sets: [20, 22, 24, 26].map((w, i) => ({ id: 'p' + i, type: 'work', weight: w, reps: 9, rir: 2, done: true })) }] }); localStorage.setItem('pp:v1', JSON.stringify(S)); });
   await q.reload(); await q.waitForSelector('nav'); await q.click('[data-a=openStart][data-id="r-push"]'); await q.click('[data-a=doStart]'); await q.waitForSelector('.panel');
   await q.fill('[data-c=wInput]', '30'); await q.dispatchEvent('[data-c=wInput]', 'change'); await q.click('[data-a=complete]');
-  w = await q.evaluate(() => window.__pp.S.sessions.at(-1).exercises[0].sets.map((x) => x.weight)); assert.deepEqual(w, [30, 22, 24, 26]); ok('pyramid history (20/22/24/26): changing set 1 does NOT overwrite the other planned weights');
+  w = await q.evaluate(() => window.__pp.S.sessions.at(-1).exercises[0].sets.map((x) => x.weight)); assert.deepEqual(w, [30, 30, 30, 30]); ok('NEW RULE: completing set 1 at 30 → remaining sets start at 30 (follow the set just done)');
+  await q.click('[data-a=pickW][data-id="30"]').catch(() => {});
+  await q.fill('[data-c=wInput]', '25'); await q.dispatchEvent('[data-c=wInput]', 'change'); await q.click('[data-a=complete]');
+  w = await q.evaluate(() => window.__pp.S.sessions.at(-1).exercises[0].sets.map((x) => x.weight)); assert.deepEqual(w, [30, 25, 25, 25]); ok('USER CASE: 1세트 30 → 2세트 25 → 3·4세트는 25로 시작 (not back to set 1)');
+  await q.click('[data-a=selSet][data-id="3"]'); await q.fill('[data-c=wInput]', '15'); await q.dispatchEvent('[data-c=wInput]', 'change');
+  await q.click('[data-a=selSet][data-id="2"]'); await q.fill('[data-c=wInput]', '20'); await q.dispatchEvent('[data-c=wInput]', 'change'); await q.click('[data-a=complete]');
+  w = await q.evaluate(() => window.__pp.S.sessions.at(-1).exercises[0].sets.map((x) => x.weight)); assert.deepEqual(w, [30, 25, 20, 15]); ok('a later set you already set by hand (set 4 = 15) is NOT overwritten');
   await ctx2.close();
 }
 // ---- 7. external review findings (regressions)
