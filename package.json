@@ -8,7 +8,8 @@
     "serve": "node tests/serve.mjs",
     "e2e": "node tests/e2e.mjs",
     "robust": "node tests/robustness.mjs",
-    "verify": "npm test && node tests/e2e.mjs && node tests/robustness.mjs && node tests/i18n.mjs",
-    "i18n": "node tests/i18n.mjs"
+    "verify": "npm test && node tests/e2e.mjs && node tests/robustness.mjs && node tests/i18n.mjs && node tests/update.mjs",
+    "i18n": "node tests/i18n.mjs",
+    "update": "node tests/update.mjs"
   }
 }

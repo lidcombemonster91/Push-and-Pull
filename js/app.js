@@ -9,6 +9,7 @@ const { MODES, fmtNum, fmtTime, ymd } = L;
 const $app = document.getElementById('app');
 const $sheet = document.getElementById('sheet');
 const $toast = document.getElementById('toast');
+const BUILD = 'pp-v10'; // shown in Settings; keep in sync with sw.js VERSION
 const DAYS_LONG_EN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const DAYS = [tr('월'), tr('화'), tr('수'), tr('목'), tr('금'), tr('토'), tr('일')];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -544,7 +545,7 @@ function settingsView() {
     <button class="row danger" data-a="resetAll"><div><b>${tr('모든 데이터 초기화')}</b></div>${icon('chev')}</button></div>
   <input type="file" id="file" accept="application/json,.json" hidden>
   <p class="mu small pad" id="persist">${tr('저장소: 상태 확인 중…')}</p>
-  <p class="mu small pad">${tr('Push &amp; Pull v1 · kg 단위')}</p>`;
+  <p class="mu small pad" id="build">${tr('Push &amp; Pull v1 · kg 단위')} · ${BUILD}</p>`;
 }
 function toggle(k, label, note) {
   return `<label class="row tg"><div><b>${label}</b>${note ? `<p class="mu small">${note}</p>` : ''}</div><input type="checkbox" data-c="tg" data-k="${k}" ${S.settings[k] ? 'checked' : ''}><span class="sw"></span></label>`;
@@ -975,5 +976,17 @@ render();
 if (active()) { ui.inWorkout = true; ui.focusPanel = true; wakeLock(true); render(); }
 if (status.corrupt) toast(tr('저장된 데이터를 읽지 못해 새로 시작했습니다. 원본은 보관되어 있습니다.'), 'bad');
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+if ('serviceWorker' in navigator) {
+  // When a new version takes over, reload once so the new files are used right away
+  // (only for updates: on the very first install there was no previous controller).
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    const typing = document.activeElement?.matches?.('input, textarea');
+    if (typing) document.addEventListener('focusout', () => location.reload(), { once: true }); else location.reload();
+  });
+  navigator.serviceWorker.register('./sw.js').then((r) => r.update()).catch(() => {});
+}
 window.__pp = { S, ui, A, render }; // test hook

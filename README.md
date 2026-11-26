@@ -43,7 +43,7 @@ S = { schema, settings, meta,
 설정 → 언어. 처음 실행 시 휴대폰 언어를 따릅니다(한국어 폰 → 한국어, 그 외 → English). UI 문구는 한국어 원문이 키이고 `js/i18n-en.js`에 영어가 있습니다. 기본 운동의 자세 가이드도 영어로 제공되며, 사용자가 수정한 문구는 그대로 둡니다. 운동 기록 데이터는 언어와 무관하게 유지됩니다.
 
 ## 배포 (GitHub Pages)
-`main`에 푸시하면 `.github/workflows/pages.yml`이 단위 테스트 후 앱 파일만 배포합니다. **저장소 Settings → Pages → Source를 `GitHub Actions`로 한 번 설정**해야 합니다. 배포 후 Safari에서 열어 홈 화면에 추가하세요. 코드를 바꾸면 `sw.js`의 `VERSION`을 올려야 설치된 앱이 새 파일을 받습니다.
+`main`에 푸시하면 `.github/workflows/pages.yml`이 단위 테스트 후 앱 파일만 배포합니다. **저장소 Settings → Pages → Source를 `GitHub Actions`로 한 번 설정**해야 합니다. 배포 후 Safari에서 열어 홈 화면에 추가하세요. 코드를 바꾸면 `sw.js`의 `VERSION`과 `js/app.js`의 `BUILD`를 같은 값으로 올리세요. 설치된 앱은 다음 실행 때 새 버전을 받아 자동으로 한 번 새로고침합니다(설정 맨 아래에 버전 표시). `npm run update`가 GitHub Pages 캐시(10분) 조건에서 이 업데이트 경로를 검사합니다.
 
 ## 실기기 점검
 `docs/DEVICE-TEST.md` — 잠금 화면 타이머, 설치, 오프라인 등 자동 테스트로 확인할 수 없는 22개 항목.
