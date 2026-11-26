@@ -20,7 +20,7 @@ jobs:
       - name: Assemble site (app files only)
         run: |
           mkdir _site
-          cp -r index.html sw.js manifest.webmanifest css js icons _site/
+          cp -r index.html sw.js manifest.webmanifest css js icons fonts _site/
       - uses: actions/upload-pages-artifact@v3
         with: { path: _site }
   deploy:

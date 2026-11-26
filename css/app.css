@@ -196,3 +196,70 @@ ul.info { padding-left: 18px; line-height: 1.6; width: auto; height: auto; displ
 .last span { color: var(--amber); font-size: 13px; font-weight: 650; flex: none; } .last b { font-size: 18px; letter-spacing: -.01em; } .last em { margin-left: auto; font-style: normal; font-size: 12px; color: #c9b48a; }
 button.last:active { background: #3a2f18; } .last.same { background: #12201c; border-color: #1f3d34; } .last.same span, .last.same em { color: var(--ok); }
 .last.none { background: var(--s2); border-color: var(--line); } .last.none span { color: var(--mu); } .last.none b { font-size: 15px; color: var(--mu); } .last.none em { color: var(--dim); }
+
+/* =====================================================================
+   IRON THEME — cast iron, machined steel, knurled grips, stamped numbers.
+   Accent (forge orange) is reserved for: rest timer, PRs, "last time".
+   ===================================================================== */
+@font-face { font-family: "Barlow Condensed"; src: url("../fonts/barlow-condensed-700.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Barlow Condensed"; src: url("../fonts/barlow-condensed-800.woff2") format("woff2"); font-weight: 800; font-display: swap; }
+:root {
+  --bg: #121417; --s1: #1b1e22; --s2: #252a2f; --s3: #30363c; --line: #3b424a;
+  --tx: #e1e5e9; --mu: #9099a3; --dim: #7d858f;
+  --amber: #ff8a3d; --ok: #4fc7a6; --bad: #ff5f57;
+  --num: "Barlow Condensed", var(--font);
+  --steel: linear-gradient(180deg, #f4f6f8 0%, #d3d9de 38%, #a9b1b9 52%, #c9d0d6 70%, #e6eaed 100%);
+  --steel-press: linear-gradient(180deg, #b9c1c8 0%, #9aa3ab 50%, #b3bbc2 100%);
+  --bevel: inset 0 1px 0 rgba(255, 255, 255, .06), inset 0 -1px 0 rgba(0, 0, 0, .45);
+  --knurl: repeating-linear-gradient(45deg, rgba(255, 255, 255, .05) 0 1px, transparent 1px 5px), repeating-linear-gradient(-45deg, rgba(0, 0, 0, .38) 0 1px, transparent 1px 5px);
+}
+html, body { background: var(--bg); }
+/* stamped numerals */
+h1, .big, .val input, .tt b, .srow .cur, .srow .prev, .srow .sn, .last b, .week .big, .day, .bar b, .tbl td, .plate b, .restrow b { font-family: var(--num); }
+h1 { font-weight: 800; font-size: 36px; letter-spacing: -.01em; }
+.big { font-weight: 800; font-size: 30px; letter-spacing: 0; }
+small.en { font-family: var(--num); font-weight: 700; font-size: 14px; letter-spacing: .02em; color: #a3abb4; }
+.val input, .panel .val input { font-weight: 800; font-size: 56px; letter-spacing: 0; color: #eef1f4; text-shadow: 0 2px 0 rgba(0, 0, 0, .55), 0 -1px 0 rgba(255, 255, 255, .06); }
+.stepper.small .val input, .panel .stepper.small .val input { font-size: 40px; }
+.tt b { font-weight: 800; font-size: 34px; letter-spacing: 0; }
+.srow .cur { font-size: 19px; font-weight: 700; } .srow .prev { font-size: 15px; } .srow .sn { font-size: 20px; font-weight: 800; }
+/* machined surfaces: tighter radii, bevelled edges instead of soft cards */
+.row, .card, .week > div, .acc, .cal, .sug, .advice, .note { border-radius: 8px; border: 1px solid #2a2f35; box-shadow: var(--bevel); }
+.row.next, .resume { border-color: #6a4426; background: linear-gradient(180deg, #221a14, #1a1613); }
+.panel { border-radius: 12px; border: 1px solid #353b42; background: radial-gradient(120% 70% at 50% 0%, #262b30 0%, #1b1e22 60%, #17191c 100%); box-shadow: var(--bevel), 0 8px 24px rgba(0, 0, 0, .35); }
+.srow { border-radius: 6px; border: 1px solid #2a2f35; box-shadow: var(--bevel); }
+.srow.sel { border-color: #c9d0d6; }
+.srow.done { background: linear-gradient(180deg, #14231f, #111c19); border-color: #1f3d34; }
+/* knurled steppers — the barbell grip */
+.step { border-radius: 8px; background-color: var(--s2); background-image: var(--knurl); border: 1px solid #3b424a; box-shadow: var(--bevel); }
+.step:active { background-color: var(--s3); transform: translateY(1px); }
+/* brushed-steel primary actions */
+.btn { border-radius: 8px; border: 1px solid #343a41; box-shadow: var(--bevel); }
+.btn.primary { background: var(--steel); color: #101316; border-color: #7d868f; font-weight: 750; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), inset 0 -2px 0 rgba(0, 0, 0, .25), 0 2px 0 #0a0b0d; text-shadow: 0 1px 0 rgba(255, 255, 255, .5); }
+.btn.primary:active { background: var(--steel-press); transform: translateY(1px); box-shadow: inset 0 1px 2px rgba(0, 0, 0, .35); }
+.btn.big { border-radius: 10px; font-size: 18px; }
+.chip { border-radius: 7px; border: 1px solid #343a41; box-shadow: var(--bevel); font-family: var(--num); font-weight: 700; font-size: 18px; }
+.chips.wrap .chip, .restrow .chip { font-family: var(--font); font-size: 14px; }
+.chip.on { background: var(--steel); color: #101316; border-color: #8d969f; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .85), inset 0 -1px 0 rgba(0, 0, 0, .25); }
+.strip .chip.on { color: #101316; } .strip .chip.lst { background: var(--s3); background-image: var(--knurl); }
+.seg { border-radius: 8px; border: 1px solid #2a2f35; } .seg button { border-radius: 6px; } .seg button.on { background: var(--steel); color: #101316; }
+.prog { height: 6px; border-radius: 2px; background: #22262b; box-shadow: inset 0 1px 2px rgba(0, 0, 0, .6); } .prog i { background: var(--steel); border-radius: 2px; }
+input, textarea, select { border-radius: 8px; background: #16191c; box-shadow: inset 0 2px 3px rgba(0, 0, 0, .4); }
+.val input { box-shadow: none; background: transparent; }
+nav button.on .ic { color: var(--tx); } nav button.on { color: var(--tx); } nav { background: rgba(18, 20, 23, .95); }
+nav button.on span { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }
+.tag { border-radius: 4px; background: #2a2f35; }
+.tag.pr, b.pr { background: var(--amber); color: #1a0d00; }
+.last { border-radius: 8px; background: linear-gradient(180deg, #2a1c12, #22170f); border-color: #6a4426; } .last span { color: var(--amber); } .last em { color: #d4a988; }
+.last.same { background: linear-gradient(180deg, #14231f, #111c19); }
+.sheetbox { background: #17191c; border-top: 1px solid #3b424a; border-radius: 14px 14px 0 0; }
+.tbar { background: rgba(23, 25, 28, .97); border-top: 1px solid #3b424a; }
+.tbtn button { border-radius: 7px; border: 1px solid #343a41; box-shadow: var(--bevel); font-family: var(--num); font-size: 18px; font-weight: 700; }
+.tmr .bg { stroke: #2a2f35; }
+#toast { border-radius: 8px; } #toast:not(.bad):not(.pr) { background: var(--steel); color: #101316; }
+.xbtn, .icon-btn { border-radius: 8px; border: 1px solid #343a41; }
+.day { border-radius: 6px; } .day.sel { background: var(--steel); color: #101316; }
+.chart .ln { stroke: #dfe4e8; }
+.row.routine b, .wtitle b, .top h1 { font-family: var(--num); font-weight: 800; }
+.row.routine b { font-size: 24px; letter-spacing: .01em; display: block; line-height: 1.1; margin-bottom: 2px; }
+.wtitle b { font-size: 21px; letter-spacing: .01em; }

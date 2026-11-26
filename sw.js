@@ -1,6 +1,6 @@
 // Offline-first app shell. Bump VERSION when shipping changes so clients refresh the cache.
-const VERSION = 'pp-v7';
-const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'js/app.js', 'js/store.js', 'js/logic.js', 'js/data.js', 'js/icons.js', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
+const VERSION = 'pp-v8';
+const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'js/app.js', 'js/store.js', 'js/logic.js', 'js/data.js', 'js/icons.js', 'fonts/barlow-condensed-700.woff2', 'fonts/barlow-condensed-800.woff2', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
