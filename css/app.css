@@ -190,3 +190,9 @@ ul.info { padding-left: 18px; line-height: 1.6; width: auto; height: auto; displ
 .panel .ladder { padding: 2px 2px 8px; } .panel .ladder .chip { height: 42px; min-width: 50px; font-size: 16px; }
 .panel .restrow { margin: 2px 0 0; font-size: 13px; } .panel .restrow .chip { height: 34px; min-width: 56px; }
 .panel .rir { margin: 2px 0; } .panel .rir .chip { height: 42px; }
+
+/* last-time bar: amber, tappable, above the weight */
+.last { display: flex; align-items: baseline; gap: 8px; width: 100%; margin: 0 0 8px; padding: 9px 12px; border-radius: 12px; background: #2a2212; border: 1px solid #5a4520; color: var(--tx); text-align: left; font-variant-numeric: tabular-nums; }
+.last span { color: var(--amber); font-size: 13px; font-weight: 650; flex: none; } .last b { font-size: 18px; letter-spacing: -.01em; } .last em { margin-left: auto; font-style: normal; font-size: 12px; color: #c9b48a; }
+button.last:active { background: #3a2f18; } .last.same { background: #12201c; border-color: #1f3d34; } .last.same span, .last.same em { color: var(--ok); }
+.last.none { background: var(--s2); border-color: var(--line); } .last.none span { color: var(--mu); } .last.none b { font-size: 15px; color: var(--mu); } .last.none em { color: var(--dim); }

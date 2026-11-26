@@ -148,5 +148,24 @@ for (const [w, h] of [[390, 664], [375, 553], [320, 480]]) {
   assert.ok(r.ok, `${w}x${h}`); ok(`REVIEW#2 ${w}x${h}: weight field and 세트 완료 visible right after start, not under the timer bar`);
   await ctx.close();
 }
+// ---- 10. "last time" bar: visible, uses last session per set, tap applies weight+reps
+{
+  const ctx = await b.newContext(devices['iPhone 14']); const p = await ctx.newPage(); p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(U); await p.waitForSelector('nav');
+  await p.click('[data-a=openStart][data-id="r-push"]'); await p.click('[data-a=doStart]'); await p.waitForSelector('.panel');
+  assert.match(await p.textContent('.last'), /기록 없음/); ok('LAST: first time shows "지난번 기록 없음"');
+  for (const [w, r] of [[20, 8], [24, 7]]) { await p.click(`[data-a=pickW][data-id="${w}"]`); await p.fill('[data-c=rInput]', String(r)); await p.dispatchEvent('[data-c=rInput]', 'change'); await p.click('[data-a=complete]'); }
+  await p.click('[data-a=tStop]'); await p.click('[data-a=openFinish]'); await p.click('[data-a=doFinish]'); await p.keyboard.press('Escape');
+  await p.click('[data-a=openStart][data-id="r-push"]'); await p.click('[data-a=doStart]'); await p.waitForSelector('.panel');
+  assert.equal(await p.inputValue('[data-c=wInput]'), '20'); ok('LAST: start weight = last time\'s set 1 (20)');
+  let t = await p.textContent('.last'); assert.match(t, /20kg × 8회/); assert.match(t, /지난번과 같음/); ok('LAST: set 1 bar shows 20kg × 8회 (same as now)');
+  await p.click('[data-a=pickW][data-id="22"]'); t = await p.textContent('.last'); assert.match(t, /탭해서 적용/);
+  await p.click('[data-a=useLast]'); assert.equal(await p.inputValue('[data-c=wInput]'), '20'); assert.equal(await p.inputValue('[data-c=rInput]'), '8'); ok('LAST: tapping the bar restores last time\'s 20kg × 8');
+  await p.click('[data-a=complete]'); await p.click('[data-a=tStop]');
+  t = await p.textContent('.last'); assert.match(t, /24kg × 7회/); ok('LAST: set 2 bar shows set 2 of last time (24kg × 7), not set 1');
+  assert.equal(await p.inputValue('[data-c=wInput]'), '20'); ok('LAST: weight still follows the set just done (20); last time shown alongside for comparison');
+  await p.click('[data-a=selSet][data-id="3"]'); assert.match(await p.textContent('.last'), /24kg × 7회/); ok('LAST: extra sets beyond last time compare with last time\'s final set');
+  await ctx.close();
+}
 await b.close(); srv.close();
 console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : '  ✓ no page errors'); process.exit(errs.length ? 1 : 0);

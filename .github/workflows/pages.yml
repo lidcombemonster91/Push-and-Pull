@@ -12,10 +12,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm test
-  deploy:
+  build:
     needs: test
     runs-on: ubuntu-latest
-    environment: { name: github-pages, url: "${{ steps.deployment.outputs.page_url }}" }
     steps:
       - uses: actions/checkout@v4
       - name: Assemble site (app files only)
@@ -24,5 +23,18 @@ jobs:
           cp -r index.html sw.js manifest.webmanifest css js icons _site/
       - uses: actions/upload-pages-artifact@v3
         with: { path: _site }
+  deploy:
+    # separate job: the artifact is fully registered before deploy-pages looks it up
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: "${{ steps.retry.outputs.page_url || steps.deployment.outputs.page_url }}" }
+    steps:
       - id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - name: Wait before retry
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 30
+      - id: retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4

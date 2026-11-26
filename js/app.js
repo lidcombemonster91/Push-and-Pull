@@ -116,7 +116,10 @@ function prevFor(ex, idx) {
   if (!h) return null;
   const list = h.sets.filter((s) => s.done && s.type === st.type && s.reps > 0);
   const k = ex.sets.slice(0, idx).filter((s) => s.type === st.type).length;
-  return list[k] || null;
+  const hit = list[k] || (st.type === 'work' && list.length ? list[list.length - 1] : null); // more sets than last time: compare with last time's final set
+  if (!hit) return null;
+  const sess = S.sessions.find((x) => x.exercises.includes(h));
+  return { ...hit, date: sess ? `${new Date(sess.startedAt).getMonth() + 1}/${new Date(sess.startedAt).getDate()}` : '' };
 }
 function suggestionFor(ex) {
   const h = lastHist(ex.exerciseId, ex.snap.mode);
@@ -323,7 +326,11 @@ function setPanel(ex, idx) {
   const p = prevFor(ex, idx);
   const bw = ex.snap.mode === 'bodyweight';
   return `<div class="panel">
-    <div class="pl">${st.type === 'warmup' ? '워밍업 세트' : `세트 ${ex.sets.slice(0, idx + 1).filter((s) => s.type === 'work').length}`} <span class="mu">${p ? `· 지난번 ${fmtNum(p.weight)}kg × ${p.reps}` : ''}</span></div>
+    <div class="pl">${st.type === 'warmup' ? '워밍업 세트' : `세트 ${ex.sets.slice(0, idx + 1).filter((s) => s.type === 'work').length}`}${p?.date ? ` <span class="mu small">· 지난번 ${p.date}</span>` : ''}</div>
+    ${p ? (st.weight === p.weight && st.reps === p.reps
+      ? `<div class="last same" role="status"><span>지난번</span><b>${fmtNum(p.weight)}kg × ${p.reps}회</b><em>지난번과 같음</em></div>`
+      : `<button class="last" data-a="useLast" aria-label="지난번 무게 ${fmtNum(p.weight)}kg ${p.reps}회 적용"><span>지난번</span><b>${fmtNum(p.weight)}kg × ${p.reps}회</b><em>탭해서 적용</em></button>`)
+      : `<div class="last none"><span>지난번</span><b>기록 없음</b><em>오늘 무게가 다음 기준이 돼요</em></div>`}
     <div class="stepper"><button class="step" data-a="wStep" data-id="-1" aria-label="중량 감소">${icon('minus')}</button>
       <label class="val"><input data-c="wInput" inputmode="decimal" value="${st.weight != null ? fmtNum(st.weight) : ''}" placeholder="${bw ? '0' : '–'}" aria-label="중량 kg"><span>kg · ${MODES[ex.snap.mode]}</span></label>
       <button class="step" data-a="wStep" data-id="1" aria-label="중량 증가">${icon('plus')}</button></div>
@@ -728,6 +735,10 @@ const A = {
     if (lad) { const nw = L.ladderStep(lad, st.weight, +id > 0 ? 1 : -1); if (nw == null) return toast(+id > 0 ? '보유한 덤벨 중 가장 무거운 무게예요' : '보유한 덤벨 중 가장 가벼운 무게예요'); st.weight = nw; }
     else st.weight = Math.max(0, L.round025((st.weight ?? 0) + +id * ex.snap.inc));
     save(); render();
+  },
+  useLast: () => {
+    const ex = cur(), i = selectedSet(ex), st = ex.sets[i], p = prevFor(ex, i); if (!p) return;
+    st.weight = p.weight; st.reps = p.reps; st.touched = true; save(); render(); toast(`지난번 ${fmtNum(p.weight)}kg × ${p.reps}회 적용`);
   },
   pickW: (id) => { const ex = cur(), st = ex.sets[selectedSet(ex)]; st.weight = +id; st.touched = true; save(); render(); },
   rStep: (id) => { const ex = cur(), st = ex.sets[selectedSet(ex)]; st.reps = clamp((st.reps || 0) + +id, 0, 100); save(); render(); },
