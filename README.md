@@ -7,7 +7,8 @@ npm run serve        # http://localhost:4173  (아무 정적 서버나 가능, �
 npm test             # 순수 로직 단위 테스트 (19)
 npm run e2e          # Playwright로 iPhone 뷰포트에서 실제 앱 조작 (88 체크, `npm i -D playwright` 필요)
 npm run robust       # 두 탭 동기화, 저장소 차단/용량 초과, 빈 데이터 등 예외 상황 (27 체크)
-npm run verify       # 위 세 가지 전부
+npm run i18n         # 영어 모드: 모든 화면·팝업에 한글이 한 글자도 남지 않는지 검사
+npm run verify       # 위 네 가지 전부
 ```
 iPhone: Safari에서 열기 → 공유 → **홈 화면에 추가**. 오프라인 동작(Service Worker).
 
@@ -37,6 +38,9 @@ S = { schema, settings, meta,
 * **과거 기록 불변**: 세션은 운동의 `snap`(이름·중량 기준·목표)을 복사해 저장 → 루틴/운동을 수정·삭제해도 기록은 그대로.
 * **중량 기준(`mode`)**: `perHand`(덤벨 개당, 볼륨 ×2) · `total`(바벨 총중량) · `machine`(머신 표시값) · `bodyweight`(+추가 중량).
 * 모든 항목이 UUID + `updatedAt`을 가지므로 추후 클라우드 동기화(id 단위 병합)·AI 기능 추가가 쉽습니다.
+
+## 언어 (한국어 / English)
+설정 → 언어. 처음 실행 시 휴대폰 언어를 따릅니다(한국어 폰 → 한국어, 그 외 → English). UI 문구는 한국어 원문이 키이고 `js/i18n-en.js`에 영어가 있습니다. 기본 운동의 자세 가이드도 영어로 제공되며, 사용자가 수정한 문구는 그대로 둡니다. 운동 기록 데이터는 언어와 무관하게 유지됩니다.
 
 ## 배포 (GitHub Pages)
 `main`에 푸시하면 `.github/workflows/pages.yml`이 단위 테스트 후 앱 파일만 배포합니다. **저장소 Settings → Pages → Source를 `GitHub Actions`로 한 번 설정**해야 합니다. 배포 후 Safari에서 열어 홈 화면에 추가하세요. 코드를 바꾸면 `sw.js`의 `VERSION`을 올려야 설치된 앱이 새 파일을 받습니다.

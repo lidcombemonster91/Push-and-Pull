@@ -75,7 +75,7 @@ export function history(sessions, exerciseId, mode, excludeId) {
 export const RULES = { strict: '엄격 (모든 세트 상한)', average: '평균 (첫 세트 상한 + 평균)', manual: '수동 (제안 안 함)' };
 export function suggest(hist, target, rule = 'strict') {
   if (!hist.length) return null;
-  if (rule === 'manual') return { type: 'manual', delta: 0, msg: '수동 모드: 이 운동은 증량 제안을 하지 않습니다.' };
+  if (rule === 'manual') return { type: 'manual', why: 'manual', delta: 0, msg: '수동 모드: 이 운동은 증량 제안을 하지 않습니다.' };
   const last = hist[0], ws = doneWork(last);
   const top = Math.max(...ws.map((s) => s.weight));
   const minRir = Math.max(0, (target.rir ?? 2) - 1);
@@ -88,23 +88,23 @@ export function suggest(hist, target, rule = 'strict') {
   const down = target.ladder ? ladderStep(target.ladder, top, -1) : null;
   if (allTop && rirOk && form) {
     const to = up ?? round025(top + target.inc), delta = round025(to - top);
-    return { type: 'increase', delta, to, from: top,
+    return { type: 'increase', why: rule === 'average' ? 'avg' : 'all', delta, to, from: top,
       msg: `${rule === 'average' ? '첫 세트 ' + target.repMax + '회 · 평균 양호' : '모든 세트 ' + target.repMax + '회 달성'} · RIR 양호 → ${fmtNum(to)}kg로 증가 제안` };
   }
   if (allTop && (!rirOk || !form)) {
-    return { type: 'hold', delta: 0, to: top, from: top,
+    return { type: 'hold', why: !form ? 'form' : 'rir', delta: 0, to: top, from: top,
       msg: `상한 도달했지만 ${!form ? '자세가 흔들렸어요' : 'RIR이 낮았어요'} → ${fmtNum(top)}kg 유지` };
   }
   const below = (h) => doneWork(h).some((s) => s.reps < target.repMin);
   if (below(last) && hist[1] && below(hist[1]) && Math.max(...doneWork(hist[1]).map((s) => s.weight)) >= top) {
     const to = down ?? Math.max(0, round025(top - target.inc));
-    return { type: 'reduce', delta: round025(to - top), to, from: top,
+    return { type: 'reduce', why: 'reduce', delta: round025(to - top), to, from: top,
       msg: `2회 연속 ${target.repMin}회 미달 → ${fmtNum(to)}kg로 조정 제안` };
   }
   if (below(last)) {
-    return { type: 'hold', delta: 0, to: top, from: top, msg: `${target.repMin}회 미달 → ${fmtNum(top)}kg 유지하고 반복수 채우기` };
+    return { type: 'hold', why: 'below', delta: 0, to: top, from: top, msg: `${target.repMin}회 미달 → ${fmtNum(top)}kg 유지하고 반복수 채우기` };
   }
-  return { type: 'hold', delta: 0, to: top, from: top, msg: `${fmtNum(top)}kg 유지 · 모든 세트 ${target.repMax}회 도전` };
+  return { type: 'hold', why: 'aim', delta: 0, to: top, from: top, msg: `${fmtNum(top)}kg 유지 · 모든 세트 ${target.repMax}회 도전` };
 }
 
 // Trim a routine to fit a time budget. items: [{sets, rest}]. Returns new items (copies) + info.
@@ -225,7 +225,7 @@ export function validateBackup(o) {
   if (!Array.isArray(d.sessions)) return '운동 기록 데이터가 손상되었습니다.';
   const isArr = Array.isArray, str = (v) => typeof v === 'string';
   for (const [id, e] of Object.entries(d.exercises)) {
-    if (!e || !str(e.name) || !str(e.ko) || !isArr(e.primary) || !MODES[e.mode] || ![e.sets, e.repMin, e.repMax, e.rest, e.inc].every(Number.isFinite)) return `운동 라이브러리 중 손상된 항목이 있습니다 (${String(id).slice(0, 30)}).`;
+    if (!e || !str(e.name) || !str(e.ko) || !isArr(e.primary) || !MODES[e.mode] || ![e.sets, e.repMin, e.repMax, e.rest, e.inc].every(Number.isFinite)) return '운동 라이브러리 중 손상된 항목이 있습니다.';
   }
   for (const r of Object.values(d.routines)) {
     if (!r || !str(r.name) || !isArr(r.items) || r.items.some((i) => !i || !str(i.exerciseId) || ![i.sets, i.repMin, i.repMax, i.rest].every(Number.isFinite))) return '루틴 데이터 중 손상된 항목이 있습니다.';
@@ -252,15 +252,15 @@ export function recoveryAdvice(sessions, now = Date.now()) {
   if (!done.length) return out;
   const day = 86400000;
   const days = new Set(done.filter((s) => s.startedAt >= now - 3 * day).map((s) => ymd(s.startedAt)));
-  if (days.size >= 3 && days.has(ymd(now)) === false) out.push({ level: 'rest', msg: '최근 3일 연속 운동했어요. 오늘은 휴식도 좋은 선택이에요.' });
+  if (days.size >= 3 && days.has(ymd(now)) === false) out.push({ level: 'rest', key: 'rest3', msg: '최근 3일 연속 운동했어요. 오늘은 휴식도 좋은 선택이에요.' });
   const last3 = done.slice(0, 3).filter((s) => s.pre);
   if (last3.length >= 2 && last3.filter((s) => s.pre.fatigue >= 4 || s.pre.condition <= 2).length >= 2)
-    out.push({ level: 'deload', msg: '최근 운동에서 피로가 높거나 컨디션이 낮았어요. 이번엔 세트·중량을 줄인 디로드를 고려하세요.' });
+    out.push({ level: 'deload', key: 'fatigue', msg: '최근 운동에서 피로가 높거나 컨디션이 낮았어요. 이번엔 세트·중량을 줄인 디로드를 고려하세요.' });
   const weeks = new Set(done.filter((s) => s.startedAt >= now - 42 * day).map((s) => weekStart(s.startedAt)));
   if (weeks.size >= 6 && !out.some((o) => o.level === 'deload'))
-    out.push({ level: 'deload', msg: '6주 연속으로 운동했어요. 가볍게 가는 디로드 주를 고려해 보세요.' });
+    out.push({ level: 'deload', key: 'sixWeeks', msg: '6주 연속으로 운동했어요. 가볍게 가는 디로드 주를 고려해 보세요.' });
   const sat = done.slice(0, 3).filter((s) => s.post?.satisfaction);
   if (sat.length === 3 && sat.every((s) => s.post.satisfaction <= 2) && !out.length)
-    out.push({ level: 'deload', msg: '최근 3회 만족도가 낮았어요. 루틴이나 강도를 점검해 보세요.' });
+    out.push({ level: 'deload', key: 'lowSat', msg: '최근 3회 만족도가 낮았어요. 루틴이나 강도를 점검해 보세요.' });
   return out;
 }

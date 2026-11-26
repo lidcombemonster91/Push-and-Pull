@@ -1,6 +1,9 @@
 import { createRequire } from 'node:module'; import assert from 'node:assert/strict'; import fs from 'node:fs';
 import { serve } from './serve.mjs';
 const { chromium, devices } = createRequire(import.meta.url)('playwright');
+// KO_LOCALE: these suites assert Korean UI text; first-run language follows the browser locale.
+const _launch = chromium.launch.bind(chromium);
+chromium.launch = async (...a) => { const br = await _launch(...a); const nc = br.newContext.bind(br); br.newContext = (o = {}) => nc({ locale: 'ko-KR', ...o }); return br; };
 const srv = await serve(4180); const URL_ = 'http://localhost:4180/';
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ ...devices['iPhone 14'], acceptDownloads: true, serviceWorkers: 'allow' });
