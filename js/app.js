@@ -9,7 +9,7 @@ const { MODES, fmtNum, fmtTime, ymd } = L;
 const $app = document.getElementById('app');
 const $sheet = document.getElementById('sheet');
 const $toast = document.getElementById('toast');
-const BUILD = 'pp-v10'; // shown in Settings; keep in sync with sw.js VERSION
+const BUILD = 'pp-v11'; // shown in Settings; keep in sync with sw.js VERSION
 const DAYS_LONG_EN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const DAYS = [tr('월'), tr('화'), tr('수'), tr('목'), tr('금'), tr('토'), tr('일')];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -545,6 +545,8 @@ function settingsView() {
     <button class="row danger" data-a="resetAll"><div><b>${tr('모든 데이터 초기화')}</b></div>${icon('chev')}</button></div>
   <input type="file" id="file" accept="application/json,.json" hidden>
   <p class="mu small pad" id="persist">${tr('저장소: 상태 확인 중…')}</p>
+  <h2>${tr('앱 버전')}</h2>
+  <div class="list"><button class="row" data-a="checkUpdate"><div><b>${tr('업데이트 확인')}</b><p class="mu small">${tr('현재 {v} · 새 버전이 있으면 바로 적용 (운동 기록은 그대로)', { v: BUILD })}</p></div>${icon('reset')}</button></div>
   <p class="mu small pad" id="build">${tr('Push &amp; Pull v1 · kg 단위')} · ${BUILD}</p>`;
 }
 function toggle(k, label, note) {
@@ -867,6 +869,28 @@ const A = {
   // progress
   period: (id) => { ui.period = id; render(); }, metric: (id) => { ui.metric = id; render(); },
   // settings
+  checkUpdate: async () => {
+    if (!navigator.onLine) return toast(tr('오프라인이라 확인할 수 없어요. 인터넷 연결 후 다시 시도하세요.'), 'bad');
+    toast(tr('업데이트 확인 중…'));
+    let latest = null, txt = '';
+    try { // ask the server directly, bypassing the service worker and every HTTP cache
+      txt = await (await fetch(`sw.js?check=${Date.now()}`, { cache: 'no-store' })).text();
+      latest = txt.match(/const VERSION = '([^']+)'/)?.[1] || null;
+    } catch (_) {}
+    if (!latest) return toast(tr('서버에 연결하지 못했어요. 잠시 후 다시 시도하세요.'), 'bad');
+    if (latest === BUILD) return toast(tr('최신 버전이에요 ({v})', { v: BUILD }));
+    // New version: drop the cached app files (NOT the workout data in localStorage) and load fresh.
+    toast(tr('{v}(으)로 업데이트하는 중…', { v: latest }));
+    save();
+    try {
+      for (const r of (await navigator.serviceWorker?.getRegistrations?.()) || []) await r.unregister();
+      for (const k of (await caches?.keys?.()) || []) await caches.delete(k);
+      // refresh the browser's HTTP cache too (GitHub Pages: max-age=600), using the NEW file list
+      const shell = JSON.parse((txt.match(/const SHELL = (\[[^\]]*\])/)?.[1] || '[]').replace(/'/g, '"'));
+      await Promise.all(shell.map((u) => fetch(u, { cache: 'reload' }).catch(() => null)));
+    } catch (_) {}
+    location.replace(location.pathname + `?v=${encodeURIComponent(latest)}`);
+  },
   setLang: (id) => { if (id === getLang()) return; S.settings.lang = id; save(); location.reload(); },
   exportJson: () => download(exportJSON(), `push-and-pull-backup-${ymd(Date.now())}.json`, 'application/json'),
   exportCsv: () => { if (!finished().length) return toast(tr('내보낼 운동 기록이 없습니다'), 'bad'); download(L.toCSV(S.sessions, S.settings.bodyweight), `push-and-pull-${ymd(Date.now())}.csv`, 'text/csv;charset=utf-8'); },

@@ -1,6 +1,15 @@
 // English UI dictionary. Keys are the Korean source strings used in the app (see tr() in i18n.js).
 // Placeholders like {n} are filled by tr(key, params). Missing keys fall back to Korean.
 export const EN_DICT = {
+ "앱 버전": "App version",
+ "업데이트 확인": "Check for updates",
+ "현재 {v} · 새 버전이 있으면 바로 적용 (운동 기록은 그대로)": "Current {v} · installs a new version right away (your workouts stay)",
+ "오프라인이라 확인할 수 없어요. 인터넷 연결 후 다시 시도하세요.": "You're offline. Connect to the internet and try again.",
+ "업데이트 확인 중…": "Checking for updates…",
+ "서버에 연결하지 못했어요. 잠시 후 다시 시도하세요.": "Couldn't reach the server. Try again in a moment.",
+ "최신 버전이에요 ({v})": "You're up to date ({v})",
+ "{v}(으)로 업데이트하는 중…": "Updating to {v}…",
+
  "월": "Mon",
  "화": "Tue",
  "수": "Wed",
