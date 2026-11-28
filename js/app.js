@@ -9,7 +9,7 @@ const { MODES, fmtNum, fmtTime, ymd } = L;
 const $app = document.getElementById('app');
 const $sheet = document.getElementById('sheet');
 const $toast = document.getElementById('toast');
-const BUILD = 'pp-v13'; // shown in Settings; keep in sync with sw.js VERSION
+const BUILD = 'pp-v14'; // shown in Settings; keep in sync with sw.js VERSION
 const DAYS_LONG_EN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const DAYS = [tr('월'), tr('화'), tr('수'), tr('목'), tr('금'), tr('토'), tr('일')];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -48,9 +48,9 @@ function unlockAudio() {
   try { actx ||= new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (_) {}
 }
 ['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, unlockAudio, { passive: true }));
-// Rest-over alarm: the original "띵 띵 띵—" (sine, rising last note). Volume 1–10 from Settings;
-// 4 = the original loudness, higher levels go through a compressor so they get louder without clipping.
-const alarmGain = () => (clamp(Math.round(S.settings.alarmVol ?? 4), 1, 10) / 10) * 0.9;
+// Rest-over alarm: the original "띵 띵 띵—" (sine, rising last note). Volume 1–10 from Settings
+// (default 6, chosen on the device test); 4 = the original loudness, higher levels go through a compressor so they get louder without clipping.
+const alarmGain = () => (clamp(Math.round(S.settings.alarmVol ?? 6), 1, 10) / 10) * 0.9;
 function beep() {
   if (!S.settings.sound || !actx) return;
   try {
@@ -543,7 +543,7 @@ function settingsView() {
   <div class="seg" role="radiogroup" aria-label="Language">${[['ko', '한국어'], ['en', 'English']].map(([k, n]) => `<button role="radio" aria-checked="${getLang() === k}" class="${getLang() === k ? 'on' : ''}" data-a="setLang" data-id="${k}" lang="${k}">${n}</button>`).join('')}</div>
   <h2>${tr('타이머 · 화면')}</h2>
   <div class="list">
-    ${toggle('sound', tr('휴식 종료 알림음'))}<div class="row vol"><div><b>${tr('알람 크기')}</b><p class="mu small">${tr('바꾸면 바로 들려줘요 · 4 = 기본')}</p></div><input type="range" min="1" max="10" step="1" data-c="sVol" value="${S.settings.alarmVol ?? 4}" aria-label="${tr('알람 크기')}"><b class="volv" id="volv">${S.settings.alarmVol ?? 4}</b></div><button class="row" data-a="testAlarm"><div><b>${tr('알람 미리 듣기')}</b><p class="mu small">${tr('무음 스위치가 꺼져 있고 볼륨이 켜져 있어야 들려요')}</p></div>${icon('play')}</button>${toggle('vibrate', tr('휴식 종료 진동'), navigator.vibrate ? '' : tr('이 기기/브라우저는 진동을 지원하지 않습니다 (iPhone Safari 등)'))}${toggle('wakeLock', tr('운동 중 화면 켜짐 유지'), 'wakeLock' in navigator ? '' : tr('이 브라우저는 지원하지 않습니다'))}
+    ${toggle('sound', tr('휴식 종료 알림음'))}<div class="row vol"><div><b>${tr('알람 크기')}</b><p class="mu small">${tr('바꾸면 바로 들려줘요 · 6 = 기본')}</p></div><input type="range" min="1" max="10" step="1" data-c="sVol" value="${S.settings.alarmVol ?? 6}" aria-label="${tr('알람 크기')}"><b class="volv" id="volv">${S.settings.alarmVol ?? 6}</b></div><button class="row" data-a="testAlarm"><div><b>${tr('알람 미리 듣기')}</b><p class="mu small">${tr('무음 스위치가 꺼져 있고 볼륨이 켜져 있어야 들려요')}</p></div>${icon('play')}</button>${toggle('vibrate', tr('휴식 종료 진동'), navigator.vibrate ? '' : tr('이 기기/브라우저는 진동을 지원하지 않습니다 (iPhone Safari 등)'))}${toggle('wakeLock', tr('운동 중 화면 켜짐 유지'), 'wakeLock' in navigator ? '' : tr('이 브라우저는 지원하지 않습니다'))}
     <div class="row"><div><b>${tr('워밍업 휴식(최대)')}</b></div><input class="mini" data-c="sWarm" inputmode="numeric" value="${st.warmupRest}"><span class="mu">${tr('초')}</span></div></div>
   <p class="mu small pad">${tr('웹앱 제한: 화면이 잠기거나 앱이 백그라운드에 있으면 소리·진동·알림이 울리지 않을 수 있습니다. 대신 앱으로 돌아오면 남은 시간이 정확히 복원되고, 종료된 경우 경과 시간이 표시됩니다.')}</p>
   <h2>${tr('바벨 · 체중')}</h2>

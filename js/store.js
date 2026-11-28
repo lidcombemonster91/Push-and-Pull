@@ -9,7 +9,7 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 /** The whole persisted document. Shaped so a future cloud sync can diff by id + updatedAt. */
 export const S = {
   schema: SCHEMA,
-  settings: { sound: true, vibrate: true, wakeLock: true, barWeight: 20, plates: [25, 20, 15, 10, 5, 2.5, 1.25], dumbbells: DB_DEFAULT, bodyweight: 0, warmupRest: 45, alarmVol: 4 },
+  settings: { sound: true, vibrate: true, wakeLock: true, barWeight: 20, plates: [25, 20, 15, 10, 5, 2.5, 1.25], dumbbells: DB_DEFAULT, bodyweight: 0, warmupRest: 45, alarmVol: 6 },
   exercises: {},      // id -> exercise definition (library)
   routines: {},       // id -> {id,name,desc,items:[{id,exerciseId,sets,repMin,repMax,rir,rest}]}
   routineOrder: [],
@@ -122,7 +122,7 @@ export function importJSON(text) {
 
 export function resetAll() {
   for (const k of Object.keys(S)) delete S[k];
-  Object.assign(S, { schema: SCHEMA, settings: { sound: true, vibrate: true, wakeLock: true, barWeight: 20, plates: [25, 20, 15, 10, 5, 2.5, 1.25], dumbbells: DB_DEFAULT, bodyweight: 0, warmupRest: 45, alarmVol: 4 }, sessions: [], activeId: null, timer: null, meta: { createdAt: Date.now(), updatedAt: Date.now() } });
+  Object.assign(S, { schema: SCHEMA, settings: { sound: true, vibrate: true, wakeLock: true, barWeight: 20, plates: [25, 20, 15, 10, 5, 2.5, 1.25], dumbbells: DB_DEFAULT, bodyweight: 0, warmupRest: 45, alarmVol: 6 }, sessions: [], activeId: null, timer: null, meta: { createdAt: Date.now(), updatedAt: Date.now() } });
   seed();
   save();
 }

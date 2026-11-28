@@ -208,7 +208,8 @@ for (const [w, h] of [[390, 664], [375, 553], [320, 480]]) {
     const er = AudioParam.prototype.exponentialRampToValueAtTime; AudioParam.prototype.exponentialRampToValueAtTime = function (v, t) { if (v > 0.01) window.__peaks.push(v); return er.call(this, v, t); };
   });
   await p.goto(U); await p.waitForSelector('nav'); await p.click('[data-a=tab][data-id=settings]');
-  assert.equal(await p.inputValue('[data-c=sVol]'), '4'); ok('ALARM: default volume level is 4');
+  assert.equal(await p.inputValue('[data-c=sVol]'), '6'); ok('ALARM: default volume level is 6 (picked on the iPhone test)');
+  await p.fill('[data-c=sVol]', '4'); await p.waitForTimeout(500); await p.evaluate(() => { window.__osc.length = 0; window.__peaks.length = 0; });
   await p.click('[data-a=testAlarm]'); await p.waitForTimeout(100);
   let r = await p.evaluate(() => ({ types: window.__osc.map((o) => o.type), freqs: window.__osc.map((o) => o.frequency.value), peak: Math.max(...window.__peaks) }));
   assert.deepEqual(r.types, ['sine', 'sine', 'sine']); assert.deepEqual(r.freqs, [880, 880, 1175]); ok('ALARM: original style restored (3 sine tones 880/880/1175 Hz)');
