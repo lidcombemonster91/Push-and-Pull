@@ -198,5 +198,27 @@ for (const [w, h] of [[390, 664], [375, 553], [320, 480]]) {
   await p.click('[data-a=openStart][data-id="r-abs"]'); await p.click('[data-a=doStart]'); await p.waitForSelector('.panel'); ok('ABS: can also be done on its own');
   await ctx.close();
 }
+// ---- 12. alarm: original "띵띵띵" sine style, volume 1–10 (4 = original loudness)
+{
+  const ctx = await b.newContext(devices['iPhone 14']); const p = await ctx.newPage(); p.on('pageerror', (e) => errs.push(e.message));
+  await p.addInitScript(() => {
+    window.__osc = []; window.__peaks = [];
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const co = AC.prototype.createOscillator; AC.prototype.createOscillator = function () { const o = co.call(this); window.__osc.push(o); return o; };
+    const er = AudioParam.prototype.exponentialRampToValueAtTime; AudioParam.prototype.exponentialRampToValueAtTime = function (v, t) { if (v > 0.01) window.__peaks.push(v); return er.call(this, v, t); };
+  });
+  await p.goto(U); await p.waitForSelector('nav'); await p.click('[data-a=tab][data-id=settings]');
+  assert.equal(await p.inputValue('[data-c=sVol]'), '4'); ok('ALARM: default volume level is 4');
+  await p.click('[data-a=testAlarm]'); await p.waitForTimeout(100);
+  let r = await p.evaluate(() => ({ types: window.__osc.map((o) => o.type), freqs: window.__osc.map((o) => o.frequency.value), peak: Math.max(...window.__peaks) }));
+  assert.deepEqual(r.types, ['sine', 'sine', 'sine']); assert.deepEqual(r.freqs, [880, 880, 1175]); ok('ALARM: original style restored (3 sine tones 880/880/1175 Hz)');
+  assert.ok(Math.abs(r.peak - 0.36) < 0.001, String(r.peak)); ok('ALARM: level 4 peak ≈ 0.36 (same as the original)');
+  await p.evaluate(() => { window.__osc.length = 0; window.__peaks.length = 0; });
+  await p.fill('[data-c=sVol]', '10'); await p.dispatchEvent('[data-c=sVol]', 'change'); await p.waitForTimeout(100); // two change events on purpose: preview must play once
+  r = await p.evaluate(() => ({ n: window.__osc.length, peak: Math.max(...window.__peaks), saved: JSON.parse(localStorage.getItem('pp:v1')).settings.alarmVol }));
+  assert.equal(r.saved, 10); assert.equal(r.n, 3); assert.ok(Math.abs(r.peak - 0.9) < 0.001); ok('ALARM: moving the slider to 10 saves it and plays a 2.5× louder preview');
+  await p.reload(); await p.waitForSelector('nav'); await p.click('[data-a=tab][data-id=settings]'); assert.equal(await p.inputValue('[data-c=sVol]'), '10'); ok('ALARM: volume kept after reopening');
+  await ctx.close();
+}
 await b.close(); srv.close();
 console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : '  ✓ no page errors'); process.exit(errs.length ? 1 : 0);

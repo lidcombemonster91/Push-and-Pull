@@ -9,7 +9,7 @@ const { MODES, fmtNum, fmtTime, ymd } = L;
 const $app = document.getElementById('app');
 const $sheet = document.getElementById('sheet');
 const $toast = document.getElementById('toast');
-const BUILD = 'pp-v12'; // shown in Settings; keep in sync with sw.js VERSION
+const BUILD = 'pp-v13'; // shown in Settings; keep in sync with sw.js VERSION
 const DAYS_LONG_EN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const DAYS = [tr('월'), tr('화'), tr('수'), tr('목'), tr('금'), tr('토'), tr('일')];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -48,29 +48,24 @@ function unlockAudio() {
   try { actx ||= new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (_) {}
 }
 ['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, unlockAudio, { passive: true }));
-// Rest-over alarm: "뚜뚜—" (short, short, long) played twice. Square wave + compressor = loud but not clipped.
+// Rest-over alarm: the original "띵 띵 띵—" (sine, rising last note). Volume 1–10 from Settings;
+// 4 = the original loudness, higher levels go through a compressor so they get louder without clipping.
+const alarmGain = () => (clamp(Math.round(S.settings.alarmVol ?? 4), 1, 10) / 10) * 0.9;
 function beep() {
   if (!S.settings.sound || !actx) return;
   try {
-    const t0 = actx.currentTime + 0.02;
+    const peak = alarmGain();
     const comp = actx.createDynamicsCompressor();
-    comp.threshold.value = -12; comp.knee.value = 6; comp.ratio.value = 8; comp.attack.value = 0.002; comp.release.value = 0.1;
-    const master = actx.createGain(); master.gain.value = 1.0;
-    master.connect(comp).connect(actx.destination);
-    const tone = (start, dur, freq) => {
+    comp.threshold.value = -10; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.1;
+    comp.connect(actx.destination);
+    [0, 0.22, 0.44].forEach((d, i) => {
       const o = actx.createOscillator(), g = actx.createGain();
-      o.type = 'square'; o.frequency.value = freq;
-      g.gain.setValueAtTime(0.0001, start);
-      g.gain.exponentialRampToValueAtTime(0.9, start + 0.01);
-      g.gain.setValueAtTime(0.9, start + dur - 0.03);
-      g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-      o.connect(g).connect(master); o.start(start); o.stop(start + dur + 0.02);
-    };
-    for (const rep of [0, 1.05]) { // 뚜 · 뚜 · 뚜———  ×2
-      tone(t0 + rep, 0.14, 988);
-      tone(t0 + rep + 0.22, 0.14, 988);
-      tone(t0 + rep + 0.44, 0.48, 784);
-    }
+      o.type = 'sine'; o.frequency.value = i === 2 ? 1175 : 880;
+      g.gain.setValueAtTime(0.0001, actx.currentTime + d);
+      g.gain.exponentialRampToValueAtTime(peak, actx.currentTime + d + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + d + 0.18);
+      o.connect(g).connect(comp); o.start(actx.currentTime + d); o.stop(actx.currentTime + d + 0.2);
+    });
   } catch (_) {}
 }
 const buzz = (p) => { if (S.settings.vibrate && navigator.vibrate) try { navigator.vibrate(p); } catch (_) {} };
@@ -548,7 +543,7 @@ function settingsView() {
   <div class="seg" role="radiogroup" aria-label="Language">${[['ko', '한국어'], ['en', 'English']].map(([k, n]) => `<button role="radio" aria-checked="${getLang() === k}" class="${getLang() === k ? 'on' : ''}" data-a="setLang" data-id="${k}" lang="${k}">${n}</button>`).join('')}</div>
   <h2>${tr('타이머 · 화면')}</h2>
   <div class="list">
-    ${toggle('sound', tr('휴식 종료 알림음'))}<button class="row" data-a="testAlarm"><div><b>${tr('알람 미리 듣기')}</b><p class="mu small">${tr('무음 스위치가 꺼져 있고 볼륨이 켜져 있어야 들려요')}</p></div>${icon('play')}</button>${toggle('vibrate', tr('휴식 종료 진동'), navigator.vibrate ? '' : tr('이 기기/브라우저는 진동을 지원하지 않습니다 (iPhone Safari 등)'))}${toggle('wakeLock', tr('운동 중 화면 켜짐 유지'), 'wakeLock' in navigator ? '' : tr('이 브라우저는 지원하지 않습니다'))}
+    ${toggle('sound', tr('휴식 종료 알림음'))}<div class="row vol"><div><b>${tr('알람 크기')}</b><p class="mu small">${tr('바꾸면 바로 들려줘요 · 4 = 기본')}</p></div><input type="range" min="1" max="10" step="1" data-c="sVol" value="${S.settings.alarmVol ?? 4}" aria-label="${tr('알람 크기')}"><b class="volv" id="volv">${S.settings.alarmVol ?? 4}</b></div><button class="row" data-a="testAlarm"><div><b>${tr('알람 미리 듣기')}</b><p class="mu small">${tr('무음 스위치가 꺼져 있고 볼륨이 켜져 있어야 들려요')}</p></div>${icon('play')}</button>${toggle('vibrate', tr('휴식 종료 진동'), navigator.vibrate ? '' : tr('이 기기/브라우저는 진동을 지원하지 않습니다 (iPhone Safari 등)'))}${toggle('wakeLock', tr('운동 중 화면 켜짐 유지'), 'wakeLock' in navigator ? '' : tr('이 브라우저는 지원하지 않습니다'))}
     <div class="row"><div><b>${tr('워밍업 휴식(최대)')}</b></div><input class="mini" data-c="sWarm" inputmode="numeric" value="${st.warmupRest}"><span class="mu">${tr('초')}</span></div></div>
   <p class="mu small pad">${tr('웹앱 제한: 화면이 잠기거나 앱이 백그라운드에 있으면 소리·진동·알림이 울리지 않을 수 있습니다. 대신 앱으로 돌아오면 남은 시간이 정확히 복원되고, 종료된 경우 경과 시간이 표시됩니다.')}</p>
   <h2>${tr('바벨 · 체중')}</h2>
@@ -972,6 +967,7 @@ document.addEventListener('change', (ev) => {
     const cell = document.querySelector('.srow.sel .cur'); if (cell) cell.innerHTML = setCur(ex.sets[i]);
   } else if (c === 'formBreak') { cur().formBreak = el.checked; save(); }
   else if (c === 'rName') { S.routines[ui.routineId].name = el.value.trim() || tr('이름 없는 루틴'); S.routines[ui.routineId].updatedAt = Date.now(); save(); }
+  else if (c === 'sVol') { S.settings.alarmVol = clamp(Math.round(num(el.value)), 1, 10); save(); unlockAudio(); if (Date.now() - (beep.last || 0) > 400) { beep.last = Date.now(); beep(); } }
   else if (c === 'rAddon') { S.routines[ui.routineId].addon = el.checked; S.routines[ui.routineId].updatedAt = Date.now(); save(); }
   else if (c === 'rDesc') { S.routines[ui.routineId].desc = el.value.trim(); save(); }
   else if (c === 'progEx') { ui.progEx = el.value; render(); }
@@ -996,6 +992,7 @@ document.addEventListener('change', async (ev) => {
 });
 document.addEventListener('input', (ev) => {
   const el = ev.target, i = el.dataset.i;
+  if (el.dataset.c === 'sVol') { const v = document.getElementById('volv'); if (v) v.textContent = el.value; }
   if (i === 'note') { const ex = cur(); if (ex) { ex.note = el.value; save(); } }
   else if (i === 'pickQ' || i === 'libQ') { ui.sheet.q = el.value; document.getElementById('pickList').innerHTML = pickList(el.value, i === 'libQ'); }
   else if (i === 'plate') { ui.sheet.w = el.value; document.getElementById('plOut').innerHTML = plateOut(L.plateCalc(num(el.value), S.settings.barWeight, S.settings.plates)); }

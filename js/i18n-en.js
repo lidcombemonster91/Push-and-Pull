@@ -1,6 +1,9 @@
 // English UI dictionary. Keys are the Korean source strings used in the app (see tr() in i18n.js).
 // Placeholders like {n} are filled by tr(key, params). Missing keys fall back to Korean.
 export const EN_DICT = {
+ "알람 크기": "Alarm volume",
+ "바꾸면 바로 들려줘요 · 4 = 기본": "Plays a preview when you change it · 4 = default",
+
  "추가 세션": "Add-on sessions",
  "진행 중인 운동에 추가": "Add to current workout",
  "따로 하기": "Do on its own",
