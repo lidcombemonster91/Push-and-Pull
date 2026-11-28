@@ -1,5 +1,5 @@
 // Offline-first app shell. Bump VERSION when shipping changes so clients refresh the cache.
-const VERSION = 'pp-v11'; // keep in sync with BUILD in js/app.js
+const VERSION = 'pp-v12'; // keep in sync with BUILD in js/app.js
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'js/app.js', 'js/store.js', 'js/logic.js', 'js/data.js', 'js/icons.js', 'js/i18n.js', 'js/i18n-en.js', 'fonts/barlow-condensed-700.woff2', 'fonts/barlow-condensed-800.woff2', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {

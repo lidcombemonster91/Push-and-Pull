@@ -1,6 +1,17 @@
 // English UI dictionary. Keys are the Korean source strings used in the app (see tr() in i18n.js).
 // Placeholders like {n} are filled by tr(key, params). Missing keys fall back to Korean.
 export const EN_DICT = {
+ "추가 세션": "Add-on sessions",
+ "진행 중인 운동에 추가": "Add to current workout",
+ "따로 하기": "Do on its own",
+ "{n} 세션 추가": "Add {n} session",
+ "(다른 운동 끝에 붙여서 하는 루틴 · 순서 로테이션에서 제외)": "(tacked onto the end of another workout · not in the rotation)",
+ "알람 미리 듣기": "Test alarm sound",
+ "무음 스위치가 꺼져 있고 볼륨이 켜져 있어야 들려요": "Silent switch off and volume up, or you won't hear it",
+ "휴식 종료 알림음이 꺼져 있어요": "The rest-over sound is turned off",
+ "{n} {k}종목을 추가했어요": "Added {n}: {k} exercises",
+ "복근 · 추가 세션": "Abs · add-on session",
+
  "앱 버전": "App version",
  "업데이트 확인": "Check for updates",
  "현재 {v} · 새 버전이 있으면 바로 적용 (운동 기록은 그대로)": "Current {v} · installs a new version right away (your workouts stay)",
@@ -450,6 +461,10 @@ export const EN_DICT = {
 };
 // English form guides for the built-in exercises: [setup, form, mistakes]. Used only while the user hasn't edited that text.
 export const GUIDE_EN = {
+ "hanging-leg-raise": ["Hang from the bar at shoulder width and pull your shoulders down slightly.", "Curl the pelvis up as you raise the legs, then lower slowly without swinging.", "Swinging for momentum · lifting the legs without curling the pelvis"],
+ "ab-wheel-rollout": ["Kneel on a mat with the wheel under your shoulders.", "Brace your abs and roll out only as far as your lower back stays flat, then pull back with your abs.", "Lower back sagging · pulling back with the hips"],
+ "reverse-crunch": ["Lie on the floor, knees up at 90°, hands by your sides.", "Curl the pelvis off the floor to bring the knees toward the chest, then lower slowly.", "Throwing the legs for momentum · straining the neck"],
+
  "incline-db-press": [
   "Set the bench to about 30° (low incline). Rest the dumbbells on your knees, sit back and kick them up beside your chest.",
   "Pull your shoulder blades back and down and lift your chest slightly. Elbows about 45–60° from your torso, wrists stacked over forearms; at the top the dumbbells come together over your chest.",

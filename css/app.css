@@ -263,3 +263,67 @@ nav button.on span { text-decoration: underline; text-decoration-thickness: 2px;
 .row.routine b, .wtitle b, .top h1 { font-family: var(--num); font-weight: 800; }
 .row.routine b { font-size: 24px; letter-spacing: .01em; display: block; line-height: 1.1; margin-bottom: 2px; }
 .wtitle b { font-size: 21px; letter-spacing: .01em; }
+
+/* =====================================================================
+   DENSE LAYOUT — instrument-panel density: smaller controls, tighter gaps.
+   Primary actions (set done, +/-) stay >= 44px for sweaty/gloved thumbs.
+   ===================================================================== */
+html, body { font-size: 15px; }
+main { padding: calc(var(--safe-t) + 10px) 12px 20px; }
+main.wo { padding-bottom: 110px; }
+h1 { font-size: 30px; } h2 { font-size: 13.5px; margin: 16px 0 6px; }
+.top { margin-bottom: 8px; } .top p { margin-top: 0; }
+.list { gap: 5px; }
+.row { min-height: 46px; padding: 9px 12px; border-radius: 6px; gap: 10px; }
+.row.item { padding: 3px 3px 3px 12px; } .row .grow { padding: 5px 0; } .mv button { width: 36px; height: 40px; }
+.row.routine b { font-size: 21px; } .row .mu { font-size: 13px; }
+.card { padding: 12px; margin: 8px 0; }
+.week { gap: 6px; margin: 8px 0; } .week > div { padding: 9px 10px; } .week .big, .big { font-size: 24px; } .week .mu { font-size: 11.5px; }
+.btn { min-height: 40px; padding: 0 12px; font-size: 14px; border-radius: 6px; }
+.btn.small { min-height: 34px; padding: 0 10px; font-size: 13px; }
+.btn.big { min-height: 50px; font-size: 17px; margin-top: 6px; border-radius: 8px; }
+.icon-btn { width: 38px; height: 38px; } .ic { width: 20px; height: 20px; }
+.chip { min-width: 38px; height: 38px; padding: 0 10px; font-size: 16px; border-radius: 6px; }
+.chips { gap: 6px; margin: 4px 0 10px; } .chips.wrap .chip { height: 34px; }
+.seg { padding: 3px; margin: 4px 0 8px; } .seg button { height: 34px; font-size: 13px; } .seg.small button { height: 30px; }
+input, textarea, select { min-height: 42px; padding: 9px 11px; font-size: 16px; }
+.field { margin: 6px 0; } .lab { margin: 8px 0 3px; font-size: 13px; }
+.tools { gap: 6px; margin: 8px 0; } .tools .btn { min-height: 38px; font-size: 13.5px; }
+.acc { margin: 6px 0; padding: 0 12px; } .acc summary { min-height: 42px; font-size: 14px; }
+nav button { min-height: 48px; padding: 4px 0; }
+/* workout */
+.wtop .icon-btn { width: 36px; height: 36px; } .wtitle b { font-size: 19px; } .wtitle span { font-size: 12px; }
+.prog { margin: 8px 0 6px; height: 4px; }
+.strip { gap: 5px; padding-bottom: 4px; } .strip .chip { min-width: 36px; height: 36px; font-size: 16px; }
+.exhead { margin: 6px 0 6px; } .exhead h2 { font-size: 20px; line-height: 1.15; } .exhead .target { font-size: 12.5px; margin-top: 2px; }
+.exhead small.en { font-size: 13px; }
+.sug { padding: 8px 10px; margin: 6px 0; gap: 8px; } .sug p { font-size: 12.5px; }
+.panel { padding: 10px; margin: 6px 0; border-radius: 10px; }
+.phead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.phead .pl { margin: 0; font-size: 15px; white-space: nowrap; } .phead .pl small { margin-left: 6px; font-size: 11.5px; font-weight: 500; }
+.phead .last { width: auto; margin: 0; padding: 5px 9px; gap: 6px; align-items: center; min-height: 34px; }
+.phead .last span { font-size: 11.5px; } .phead .last b { font-size: 16px; } .phead .last em { margin-left: 2px; font-size: 11px; }
+.phead .last.none b { font-size: 13px; }
+.duo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.duo .stepper, .panel .duo .stepper { grid-template-columns: 44px 1fr 44px; gap: 4px; margin: 0; }
+.duo .step, .panel .duo .step, .panel .duo .stepper.small .step { height: 52px; border-radius: 6px; } .duo .step .ic { width: 22px; height: 22px; }
+.duo .val input, .panel .duo .val input { font-size: 40px; min-height: 44px; }
+.duo .stepper.small .val input, .panel .duo .stepper.small .val input { font-size: 40px; }
+.duo .val span { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.panel .ladder { padding: 8px 2px 6px; gap: 6px; } .panel .ladder .chip { height: 36px; min-width: 44px; font-size: 16px; }
+.panel .rir { margin: 4px 0 2px; gap: 6px; } .panel .rir .chip { height: 38px; } .rirlab { width: 42px; font-size: 13px; }
+.panel .restrow { margin: 4px 0 0; gap: 8px; font-size: 12.5px; } .panel .restrow .chip { height: 30px; min-width: 50px; font-size: 14px; }
+.panel .btn.big { min-height: 52px; margin-top: 6px; }
+.sets { gap: 4px; margin: 6px 0; } .srow { min-height: 38px; padding: 0 10px; } .srow .cur { font-size: 17px; } .srow .sn { font-size: 17px; } .srow .prev { font-size: 14px; }
+.shead { font-size: 11px; }
+.nohist { margin: 4px 0; font-size: 12px; }
+/* timer bar */
+.tbar { padding: 6px 10px calc(var(--safe-b) + 6px); }
+.tmr { grid-template-columns: 40px 66px 1fr; gap: 8px; } .tmr .ringsvg { width: 40px; height: 40px; }
+.tt b { font-size: 28px; } .tbtn { gap: 3px; } .tbtn button { height: 40px; font-size: 16px; }
+.tinfo { padding-top: 3px; font-size: 11px; }
+/* sheets */
+.sheetbox { padding: 8px 14px calc(var(--safe-b) + 16px); } .grab { margin-bottom: 10px; }
+.xbtn { width: 34px; height: 34px; top: 10px; right: 10px; }
+.rirlab { width: 50px; flex: none; } .rirlab small { white-space: nowrap; font-size: 10px; letter-spacing: -.02em; }
+.row.routine.addon b { font-size: 18px; } .row.routine.addon { min-height: 42px; border-style: dashed; }

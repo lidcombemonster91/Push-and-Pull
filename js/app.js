@@ -9,7 +9,7 @@ const { MODES, fmtNum, fmtTime, ymd } = L;
 const $app = document.getElementById('app');
 const $sheet = document.getElementById('sheet');
 const $toast = document.getElementById('toast');
-const BUILD = 'pp-v11'; // shown in Settings; keep in sync with sw.js VERSION
+const BUILD = 'pp-v12'; // shown in Settings; keep in sync with sw.js VERSION
 const DAYS_LONG_EN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const DAYS = [tr('월'), tr('화'), tr('수'), tr('목'), tr('금'), tr('토'), tr('일')];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -48,17 +48,29 @@ function unlockAudio() {
   try { actx ||= new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (_) {}
 }
 ['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, unlockAudio, { passive: true }));
+// Rest-over alarm: "뚜뚜—" (short, short, long) played twice. Square wave + compressor = loud but not clipped.
 function beep() {
   if (!S.settings.sound || !actx) return;
   try {
-    [0, 0.22, 0.44].forEach((d, i) => {
+    const t0 = actx.currentTime + 0.02;
+    const comp = actx.createDynamicsCompressor();
+    comp.threshold.value = -12; comp.knee.value = 6; comp.ratio.value = 8; comp.attack.value = 0.002; comp.release.value = 0.1;
+    const master = actx.createGain(); master.gain.value = 1.0;
+    master.connect(comp).connect(actx.destination);
+    const tone = (start, dur, freq) => {
       const o = actx.createOscillator(), g = actx.createGain();
-      o.type = 'sine'; o.frequency.value = i === 2 ? 1175 : 880;
-      g.gain.setValueAtTime(0.0001, actx.currentTime + d);
-      g.gain.exponentialRampToValueAtTime(0.35, actx.currentTime + d + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + d + 0.18);
-      o.connect(g).connect(actx.destination); o.start(actx.currentTime + d); o.stop(actx.currentTime + d + 0.2);
-    });
+      o.type = 'square'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, start);
+      g.gain.exponentialRampToValueAtTime(0.9, start + 0.01);
+      g.gain.setValueAtTime(0.9, start + dur - 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+      o.connect(g).connect(master); o.start(start); o.stop(start + dur + 0.02);
+    };
+    for (const rep of [0, 1.05]) { // 뚜 · 뚜 · 뚜———  ×2
+      tone(t0 + rep, 0.14, 988);
+      tone(t0 + rep + 0.22, 0.14, 988);
+      tone(t0 + rep + 0.44, 0.48, 784);
+    }
   } catch (_) {}
 }
 const buzz = (p) => { if (S.settings.vibrate && navigator.vibrate) try { navigator.vibrate(p); } catch (_) {} };
@@ -256,13 +268,13 @@ async function fillPersist() {
 }
 
 // ================= Today =================
+const addons = () => S.routineOrder.filter((id) => S.routines[id]?.addon && S.routines[id].items.length);
 function nextRoutineId() {
-  const last = finished()[0];
-  const order = S.routineOrder;
+  const order = S.routineOrder.filter((id) => !S.routines[id]?.addon);
   if (!order.length) return null;
+  const last = finished().find((s) => order.includes(s.routineId));
   if (!last) return order[0];
-  const i = order.indexOf(last.routineId);
-  return order[(i + 1) % order.length];
+  return order[(order.indexOf(last.routineId) + 1) % order.length];
 }
 function todayView() {
   const a = active();
@@ -281,9 +293,10 @@ function todayView() {
     <div><span class="big">${fmtVol(wk.v)}</span><span class="mu">${tr('총 볼륨')}</span></div>
   </section>
   <h2>${tr('루틴 선택')}</h2>
-  <div class="list">${S.routineOrder.map((id) => { const r = S.routines[id]; return `<button class="row routine ${id === next ? 'next' : ''}" data-a="openStart" data-id="${esc(id)}" ${a ? 'disabled' : ''}>
+  <div class="list">${S.routineOrder.filter((id) => !S.routines[id].addon).map((id) => { const r = S.routines[id]; return `<button class="row routine ${id === next ? 'next' : ''}" data-a="openStart" data-id="${esc(id)}" ${a ? 'disabled' : ''}>
       <div><b>${esc(r.name)}</b><p class="mu">${esc(tx(r.desc || ''))} · ${r.items.length}${tr('종목 · 약')} ${Math.round(L.estimateSec(r.items) / 60)}${tr('분')}</p></div>
       ${id === next ? tr('<span class="tag">다음 순서</span>') : icon('chev')}</button>`; }).join('') || tr('<p class="empty">루틴이 없습니다. Routines 탭에서 새 루틴을 만드세요.</p>')}</div>
+  ${addons().length ? `<h2>${tr('추가 세션')}</h2><div class="list">${addons().map((id) => { const r = S.routines[id]; return `<button class="row routine addon" data-a="${a ? 'addAddon' : 'openStart'}" data-id="${esc(id)}"><div><b>${esc(r.name)}</b><p class="mu">${esc(tx(r.desc || ''))} · ${r.items.length}${tr('종목 · 약')} ${Math.round(L.estimateSec(r.items) / 60)}${tr('분')}</p></div><span class="tag">${a ? tr('진행 중인 운동에 추가') : tr('따로 하기')}</span></button>`; }).join('')}</div>` : ''}
   ${a ? tr('<p class="mu small">진행 중인 운동을 끝내면 새 운동을 시작할 수 있습니다.</p>') : ''}
   ${last ? `<h2>${tr('최근 운동')}</h2><button class="row" data-a="openSession" data-id="${esc(last.id)}"><div><b>${esc(last.routineName)}</b><p class="mu">${fmtDate(last.startedAt)} · ${fmtVol(L.sessionStats(last, S.settings.bodyweight).volume)}</p></div>${icon('chev')}</button>` : tr('<p class="empty">아직 기록이 없습니다. 루틴을 선택해 첫 운동을 시작하세요.<br>첫 운동에서는 중량을 직접 입력하고, 다음부터 지난 기록이 자동으로 채워집니다.</p>')}`;
 }
@@ -311,7 +324,7 @@ function workoutView() {
       <p class="target">${ex.snap.primary.map((m) => esc(tx(m))).join(', ')}${ex.snap.secondary.length ? `<span class="dim"> +${ex.snap.secondary.map((m) => esc(tx(m))).join(', ')}</span>` : ''} · ${ex.sets.filter((x) => x.type === 'work').length}×${range(ex.snap)}${tr('회 · 휴식')} ${ex.snap.rest}${tr('초')} <span class="tag">${tx(MODES[ex.snap.mode])}</span></p></div>
     ${ex.skipped ? `<div class="card center"><p class="mu">${tr('이 운동은 건너뛰었습니다.')}</p><button class="btn" data-a="unskip">${tr('건너뛰기 취소')}</button></div>` : `
     ${sug && (sug.type === 'increase' || sug.type === 'reduce') ? `<div class="sug ${sug.type}"><div><b>${sug.type === 'increase' ? tr('증량 제안') : tr('중량 조정 제안')}</b><p>${esc(sugMsg(sug))}</p></div><button class="btn small" data-a="applySug">${ex.sugApplied ? tr('적용됨') : tr('적용')}</button></div>` : ''}
-    ${sel >= 0 ? setPanel(ex, sel) : `<div class="card center"><p><b>${tr('모든 세트 완료')}</b></p>${s.exercises.some((e, i) => i > ci && !e.skipped && e.sets.some((x) => !x.done)) ? tr('<button class="btn primary big" data-a="nextEx">다음 운동</button>') : tr('<button class="btn primary big" data-a="openFinish">운동 마무리</button>')}</div>`}
+    ${sel >= 0 ? setPanel(ex, sel) : `<div class="card center"><p><b>${tr('모든 세트 완료')}</b></p>${s.exercises.some((e, i) => i > ci && !e.skipped && e.sets.some((x) => !x.done)) ? tr('<button class="btn primary big" data-a="nextEx">다음 운동</button>') : tr('<button class="btn primary big" data-a="openFinish">운동 마무리</button>') + addonButtons(s)}</div>`}
     <div class="sets" role="list" aria-label="${tr('세트 목록')}"><div class="shead" aria-hidden="true"><span>${tr('세트')}</span><span>${tr('지난 기록')}</span><span>${tr('이번 세트')}</span><span></span></div>${ex.sets.map((st, i) => setRow(ex, st, i, sel)).join('')}</div>
     ${sug && (sug.type === 'hold' || sug.type === 'manual') ? `<p class="mu small nohist"><b>${sug.type === 'manual' ? tr('수동 모드') : tr('이번엔 유지')}</b> · ${esc(sugMsg(sug))}</p>` : ''}
     ${!sug ? `<p class="mu small nohist">${anyHistOtherMode ? tr('운동 방식(중량 기준)이 바뀌어 지난 기록과 비교하지 않습니다.') : tr('지난 기록이 없습니다. 중량을 직접 입력하면 다음 운동부터 기준이 됩니다.')}</p>` : ''}
@@ -333,6 +346,10 @@ function workoutView() {
   <div class="tbar" id="tbar">${timerBarHTML()}</div>`;
 }
 
+// add-on sessions not yet appended to this workout
+function addonButtons(s) {
+  return addons().filter((id) => !(s.addons || []).includes(id)).map((id) => `<button class="btn big" data-a="addAddon" data-id="${esc(id)}">${icon('plus')} ${tr('{n} 세션 추가', { n: esc(S.routines[id].name) })}</button>`).join('');
+}
 function guideHTML(e) {
   const rows = [[tr('기구 세팅'), guideText(e, 'setup')], [tr('올바른 자세'), guideText(e, 'form')], [tr('호흡'), guideText(e, 'breath')], [tr('반복 속도'), guideText(e, 'tempo')], [tr('자주 하는 실수'), guideText(e, 'mistakes')]].filter((r) => r[1]);
   const alts = (e.alts || []).map((id) => S.exercises[id]).filter(Boolean);
@@ -356,19 +373,21 @@ function setPanel(ex, idx) {
   const step = ex.snap.inc;
   const p = prevFor(ex, idx);
   const bw = ex.snap.mode === 'bodyweight';
-  return `<div class="panel">
-    <div class="pl">${st.type === 'warmup' ? tr('워밍업 세트') : `${tr('세트')} ${ex.sets.slice(0, idx + 1).filter((s) => s.type === 'work').length}`}${p?.date ? ` <span class="mu small">${tr('· 지난번')} ${p.date}</span>` : ''}</div>
-    ${p ? (st.weight === p.weight && st.reps === p.reps
+  const lastHTML = p ? (st.weight === p.weight && st.reps === p.reps
       ? `<div class="last same" role="status"><span>${tr('지난번')}</span><b>${fmtNum(p.weight)}kg × ${p.reps}${tr('회')}</b><em>${tr('지난번과 같음')}</em></div>`
       : `<button class="last" data-a="useLast" aria-label="${tr('지난번 무게')} ${fmtNum(p.weight)}kg ${p.reps}${tr('회 적용')}"><span>${tr('지난번')}</span><b>${fmtNum(p.weight)}kg × ${p.reps}${tr('회')}</b><em>${tr('탭해서 적용')}</em></button>`)
-      : `<div class="last none"><span>${tr('지난번')}</span><b>${tr('기록 없음')}</b><em>${tr('오늘 무게가 다음 기준이 돼요')}</em></div>`}
-    <div class="stepper"><button class="step" data-a="wStep" data-id="-1" aria-label="${tr('중량 감소')}">${icon('minus')}</button>
-      <label class="val"><input data-c="wInput" inputmode="decimal" value="${st.weight != null ? fmtNum(st.weight) : ''}" placeholder="${bw ? '0' : '–'}" aria-label="${tr('중량 kg')}"><span>kg · ${tx(MODES[ex.snap.mode])}</span></label>
-      <button class="step" data-a="wStep" data-id="1" aria-label="${tr('중량 증가')}">${icon('plus')}</button></div>
+      : `<div class="last none" title="${tr('오늘 무게가 다음 기준이 돼요')}"><span>${tr('지난번')}</span><b>${tr('기록 없음')}</b></div>`;
+  return `<div class="panel">
+    <div class="phead"><div class="pl">${st.type === 'warmup' ? tr('워밍업 세트') : `${tr('세트')} ${ex.sets.slice(0, idx + 1).filter((s) => s.type === 'work').length}`}${p?.date ? `<small class="mu">${tr('· 지난번')} ${p.date}</small>` : ''}</div>${lastHTML}</div>
+    <div class="duo">
+      <div class="stepper"><button class="step" data-a="wStep" data-id="-1" aria-label="${tr('중량 감소')}">${icon('minus')}</button>
+        <label class="val"><input data-c="wInput" inputmode="decimal" value="${st.weight != null ? fmtNum(st.weight) : ''}" placeholder="${bw ? '0' : '–'}" aria-label="${tr('중량 kg')}"><span>kg · ${tx(MODES[ex.snap.mode])}</span></label>
+        <button class="step" data-a="wStep" data-id="1" aria-label="${tr('중량 증가')}">${icon('plus')}</button></div>
+      <div class="stepper small"><button class="step" data-a="rStep" data-id="-1" aria-label="${tr('반복 감소')}">${icon('minus')}</button>
+        <label class="val"><input data-c="rInput" inputmode="numeric" value="${st.reps ?? ''}" aria-label="${tr('반복수')}"><span>${tr('회')}</span></label>
+        <button class="step" data-a="rStep" data-id="1" aria-label="${tr('반복 증가')}">${icon('plus')}</button></div>
+    </div>
     ${ladderOf(ex) ? `<div class="ladder" id="ladder" role="listbox" aria-label="${tr('보유 덤벨 무게 선택')}">${[...new Set(ladderOf(ex))].sort((a, b) => a - b).map((w) => `<button class="chip ${st.weight === w ? 'on' : ''}" data-a="pickW" data-id="${w}" role="option" aria-selected="${st.weight === w}">${fmtNum(w)}</button>`).join('')}</div>` : ''}
-    <div class="stepper small"><button class="step" data-a="rStep" data-id="-1" aria-label="${tr('반복 감소')}">${icon('minus')}</button>
-      <label class="val"><input data-c="rInput" inputmode="numeric" value="${st.reps ?? ''}" aria-label="${tr('반복수')}"><span>${tr('회')}</span></label>
-      <button class="step" data-a="rStep" data-id="1" aria-label="${tr('반복 증가')}">${icon('plus')}</button></div>
     <div class="rir"><span class="rirlab">RIR<small>${tr('여유 반복')}</small></span>${[0, 1, 2, 3, 4].map((v) => `<button class="chip ${st.rir === v ? 'on' : ''}" data-a="setRir" data-id="${v}">${v === 4 ? '4+' : v}</button>`).join('')}</div>
     ${st.done ? `<button class="btn big" data-a="uncomplete">${tr('완료 취소')}</button>` : `<div class="restrow"><span class="mu">${tr('이 세트 휴식')}</span><button class="chip" data-a="restAdj" data-id="-15" aria-label="${tr('휴식 15초 감소')}">−15</button><b>${restFor(ex, st)}${tr('초')}</b><button class="chip" data-a="restAdj" data-id="15" aria-label="${tr('휴식 15초 증가')}">+15</button></div><button class="btn primary big" data-a="complete">${ex.link || active().exercises[active().exercises.indexOf(ex) - 1]?.link ? tr('세트 완료 · 슈퍼세트') : tr('세트 완료')}</button>`}
     </div>`;
@@ -428,6 +447,7 @@ function routineEditor(r) {
   return `<header class="top"><button class="icon-btn" data-a="backRoutines" aria-label="${tr('뒤로')}">${icon('back')}</button><h1>${tr('루틴 편집')}</h1><button class="btn small danger" data-a="delRoutine">${tr('삭제')}</button></header>
   <label class="field">${tr('이름')}<input data-c="rName" value="${esc(r.name)}" maxlength="40"></label>
   <label class="field">${tr('설명')}<input data-c="rDesc" value="${esc(tx(r.desc || ''))}" maxlength="60"></label>
+  <label class="check"><input type="checkbox" data-c="rAddon" ${r.addon ? 'checked' : ''}> ${tr('추가 세션')} <span class="mu small">${tr('(다른 운동 끝에 붙여서 하는 루틴 · 순서 로테이션에서 제외)')}</span></label>
   <h2>${tr('운동')} ${r.items.length}${tr('개')} <span class="mu small">${tr('· 약')} ${Math.round(L.estimateSec(r.items) / 60)}${tr('분')}</span></h2>
   <div class="list">${r.items.map((it, i) => { const e = S.exercises[it.exerciseId]; return `<div class="row item"><div class="grow" data-a="editItem" data-id="${i}"><b>${e ? exName(e) : tr('삭제된 운동')}</b><p class="mu">${it.sets} × ${it.repMin}~${it.repMax}${tr('회 · RIR')} ${it.rir} ${tr('· 휴식')} ${it.rest}${tr('초')}</p></div>
     <div class="mv"><button data-a="itemUp" data-id="${i}" ${i === 0 ? 'disabled' : ''} aria-label="${tr('위로')}">${icon('up')}</button><button data-a="itemDown" data-id="${i}" ${i === r.items.length - 1 ? 'disabled' : ''} aria-label="${tr('아래로')}">${icon('down')}</button><button data-a="itemDel" data-id="${i}" aria-label="${tr('삭제')}">${icon('x')}</button></div></div>`; }).join('') || tr('<p class="empty">운동을 추가하세요.</p>')}</div>
@@ -528,7 +548,7 @@ function settingsView() {
   <div class="seg" role="radiogroup" aria-label="Language">${[['ko', '한국어'], ['en', 'English']].map(([k, n]) => `<button role="radio" aria-checked="${getLang() === k}" class="${getLang() === k ? 'on' : ''}" data-a="setLang" data-id="${k}" lang="${k}">${n}</button>`).join('')}</div>
   <h2>${tr('타이머 · 화면')}</h2>
   <div class="list">
-    ${toggle('sound', tr('휴식 종료 알림음'))}${toggle('vibrate', tr('휴식 종료 진동'), navigator.vibrate ? '' : tr('이 기기/브라우저는 진동을 지원하지 않습니다 (iPhone Safari 등)'))}${toggle('wakeLock', tr('운동 중 화면 켜짐 유지'), 'wakeLock' in navigator ? '' : tr('이 브라우저는 지원하지 않습니다'))}
+    ${toggle('sound', tr('휴식 종료 알림음'))}<button class="row" data-a="testAlarm"><div><b>${tr('알람 미리 듣기')}</b><p class="mu small">${tr('무음 스위치가 꺼져 있고 볼륨이 켜져 있어야 들려요')}</p></div>${icon('play')}</button>${toggle('vibrate', tr('휴식 종료 진동'), navigator.vibrate ? '' : tr('이 기기/브라우저는 진동을 지원하지 않습니다 (iPhone Safari 등)'))}${toggle('wakeLock', tr('운동 중 화면 켜짐 유지'), 'wakeLock' in navigator ? '' : tr('이 브라우저는 지원하지 않습니다'))}
     <div class="row"><div><b>${tr('워밍업 휴식(최대)')}</b></div><input class="mini" data-c="sWarm" inputmode="numeric" value="${st.warmupRest}"><span class="mu">${tr('초')}</span></div></div>
   <p class="mu small pad">${tr('웹앱 제한: 화면이 잠기거나 앱이 백그라운드에 있으면 소리·진동·알림이 울리지 않을 수 있습니다. 대신 앱으로 돌아오면 남은 시간이 정확히 복원되고, 종료된 경우 경과 시간이 표시됩니다.')}</p>
   <h2>${tr('바벨 · 체중')}</h2>
@@ -614,7 +634,7 @@ const SHEETS = {
     const s = active();
     return `<h3>${tr('운동 순서')}</h3><p class="mu small">${tr('↔ 버튼으로 바로 다음 운동과 슈퍼세트를 묶으면 두 운동을 번갈아 하고 휴식은 둘째 운동 뒤에만 시작해요.')}</p><div class="list" style="margin-top:10px">${s.exercises.map((e, i) => `<div class="row item"><div class="grow" data-a="jumpEx" data-id="${i}"><b>${i + 1}. ${snapName(e.snap)}</b><p class="mu small">${e.skipped ? tr('건너뜀') : tr('{d}/{n}세트', { d: e.sets.filter((x) => x.done).length, n: e.sets.length })}${e.link ? tr(' · 슈퍼세트 ↔ 다음') : ''}</p></div>
       <div class="mv">${i < s.exercises.length - 1 ? `<button class="lk ${e.link ? 'on' : ''}" data-a="linkEx" data-id="${i}" aria-label="${tr('다음 운동과 슈퍼세트')}" aria-pressed="${!!e.link}">${icon('swap')}</button>` : ''}<button data-a="moveEx" data-id="${i}" data-d="-1" ${i === 0 ? 'disabled' : ''} aria-label="${tr('위로')}">${icon('up')}</button><button data-a="moveEx" data-id="${i}" data-d="1" ${i === s.exercises.length - 1 ? 'disabled' : ''} aria-label="${tr('아래로')}">${icon('down')}</button></div></div>`).join('')}</div>
-    <button class="btn big" data-a="addToSession">${icon('plus')} ${tr('운동 추가')}</button>`;
+    <button class="btn big" data-a="addToSession">${icon('plus')} ${tr('운동 추가')}</button>${addonButtons(s)}`;
   },
   alt(sh) {
     const s = active(), ex = s.exercises[s.curEx], lib = S.exercises[ex.exerciseId];
@@ -891,6 +911,16 @@ const A = {
     } catch (_) {}
     location.replace(location.pathname + `?v=${encodeURIComponent(latest)}`);
   },
+  testAlarm: () => { unlockAudio(); if (!S.settings.sound) return toast(tr('휴식 종료 알림음이 꺼져 있어요'), 'bad'); beep(); buzz([200, 100, 200]); },
+  addAddon: (id) => {
+    const s = active(), r = S.routines[id]; if (!s || !r) return;
+    const items = r.items.filter((i) => S.exercises[i.exerciseId]);
+    const first = s.exercises.length;
+    for (const i of items) s.exercises.push(buildExercise(i.exerciseId, i));
+    s.addons = [...new Set([...(s.addons || []), id])];
+    s.curEx = first; ui.setIdx = null; ui.inWorkout = true; ui.focusPanel = true; closeSheet(); save(); render();
+    toast(tr('{n} {k}종목을 추가했어요', { n: r.name, k: items.length }));
+  },
   setLang: (id) => { if (id === getLang()) return; S.settings.lang = id; save(); location.reload(); },
   exportJson: () => download(exportJSON(), `push-and-pull-backup-${ymd(Date.now())}.json`, 'application/json'),
   exportCsv: () => { if (!finished().length) return toast(tr('내보낼 운동 기록이 없습니다'), 'bad'); download(L.toCSV(S.sessions, S.settings.bodyweight), `push-and-pull-${ymd(Date.now())}.csv`, 'text/csv;charset=utf-8'); },
@@ -942,6 +972,7 @@ document.addEventListener('change', (ev) => {
     const cell = document.querySelector('.srow.sel .cur'); if (cell) cell.innerHTML = setCur(ex.sets[i]);
   } else if (c === 'formBreak') { cur().formBreak = el.checked; save(); }
   else if (c === 'rName') { S.routines[ui.routineId].name = el.value.trim() || tr('이름 없는 루틴'); S.routines[ui.routineId].updatedAt = Date.now(); save(); }
+  else if (c === 'rAddon') { S.routines[ui.routineId].addon = el.checked; S.routines[ui.routineId].updatedAt = Date.now(); save(); }
   else if (c === 'rDesc') { S.routines[ui.routineId].desc = el.value.trim(); save(); }
   else if (c === 'progEx') { ui.progEx = el.value; render(); }
   else if (c === 'tg') { S.settings[el.dataset.k] = el.checked; save(); if (el.dataset.k === 'wakeLock') wakeLock(false); }

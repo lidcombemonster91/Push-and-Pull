@@ -24,11 +24,12 @@ let onError = () => {};
 export const setErrorHandler = (f) => (onError = f);
 
 function seed() {
+  S.meta = { ...(S.meta || {}), absV11: true }; // fresh installs already get the abs session
   S.exercises = {};
   for (const e of DEFAULT_EXERCISES) S.exercises[e.id] = clone(e);
   S.routines = {}; S.routineOrder = [];
   for (const r of DEFAULT_ROUTINES) {
-    S.routines[r.id] = { id: r.id, name: r.name, desc: r.desc, builtin: true, updatedAt: Date.now(), items: r.items.map((i) => ({ id: uid(), ...i })) };
+    S.routines[r.id] = { id: r.id, name: r.name, desc: r.desc, builtin: true, addon: !!r.addon, updatedAt: Date.now(), items: r.items.map((i) => ({ id: uid(), ...i })) };
     S.routineOrder.push(r.id);
   }
 }
@@ -38,7 +39,7 @@ export function restoreDefaults() {
   let n = 0;
   for (const e of DEFAULT_EXERCISES) if (!S.exercises[e.id]) { S.exercises[e.id] = clone(e); n++; }
   for (const r of DEFAULT_ROUTINES) if (!S.routines[r.id]) {
-    S.routines[r.id] = { id: r.id, name: r.name, desc: r.desc, builtin: true, updatedAt: Date.now(), items: r.items.map((i) => ({ id: uid(), ...i })) };
+    S.routines[r.id] = { id: r.id, name: r.name, desc: r.desc, builtin: true, addon: !!r.addon, updatedAt: Date.now(), items: r.items.map((i) => ({ id: uid(), ...i })) };
     S.routineOrder.push(r.id); n++;
   }
   save();
@@ -66,6 +67,7 @@ export function load() {
       const d = JSON.parse(raw);
       if (!d || typeof d !== 'object' || !d.exercises || !d.routines || !Array.isArray(d.sessions)) throw new Error('shape');
       adopt(d);
+      migrate();
       return;
     } catch (e) {
       // Never silently discard: keep the unreadable blob under another key.
@@ -75,6 +77,18 @@ export function load() {
   }
   seed();
   save();
+}
+
+// One-time additions for people who installed an earlier version (deleted items are not re-added later).
+function migrate() {
+  S.meta ||= {};
+  if (!S.meta.absV11) {
+    for (const id of ['hanging-leg-raise', 'ab-wheel-rollout', 'reverse-crunch']) if (!S.exercises[id]) S.exercises[id] = clone(DEFAULT_EXERCISES.find((e) => e.id === id));
+    const r = DEFAULT_ROUTINES.find((x) => x.id === 'r-abs');
+    if (r && !S.routines[r.id]) { S.routines[r.id] = { id: r.id, name: r.name, desc: r.desc, builtin: true, addon: true, updatedAt: Date.now(), items: r.items.map((i) => ({ id: uid(), ...i })) }; S.routineOrder.push(r.id); }
+    S.meta.absV11 = true;
+    save();
+  }
 }
 
 export function save() {

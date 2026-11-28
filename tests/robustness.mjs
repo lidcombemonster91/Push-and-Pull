@@ -33,7 +33,7 @@ const errs = [];
   const ctx = await b.newContext(devices['iPhone 14']); const p = await ctx.newPage(); p.on('pageerror', (e) => errs.push(e.message));
   await p.addInitScript(() => { const bad = () => { throw new DOMException('blocked', 'SecurityError'); }; Storage.prototype.getItem = bad; Storage.prototype.setItem = bad; });
   await p.goto(U); await p.waitForSelector('nav');
-  assert.match(await p.textContent('main'), /저장소를 막고 있어/); assert.equal(await p.locator('.row.routine').count(), 4); ok('storage blocked: app still opens with default routines + visible warning');
+  assert.match(await p.textContent('main'), /저장소를 막고 있어/); assert.equal(await p.locator('.row.routine:not(.addon)').count(), 4); ok('storage blocked: app still opens with default routines + visible warning');
   await p.click('[data-a=openStart]'); await p.click('[data-a=doStart]'); await p.fill('[data-c=wInput]', '20'); await p.dispatchEvent('[data-c=wInput]', 'change'); await p.click('[data-a=complete]');
   assert.equal(await p.evaluate(() => window.__pp.S.sessions[0].exercises[0].sets[0].done), true); ok('workout logging still works in memory when storage is blocked');
   await ctx.close();
@@ -56,7 +56,7 @@ const errs = [];
   await p.reload(); await p.waitForSelector('nav'); ok('empty-but-valid data loads (no routines) without crashing');
   assert.match(await p.textContent('main'), /루틴이 없습니다/); ok('empty state tells the user what to do');
   await p.click('[data-a=tab][data-id=settings]'); await p.click('[data-a=restoreDef]'); await p.click('[data-a=tab][data-id=today]');
-  assert.equal(await p.locator('.row.routine').count(), 4); ok('"기본 운동/루틴 복원" brings the defaults back');
+  assert.equal(await p.locator('.row.routine:not(.addon)').count(), 4); ok('"기본 운동/루틴 복원" brings the defaults back');
   await ctx.close();
 }
 
@@ -168,6 +168,34 @@ for (const [w, h] of [[390, 664], [375, 553], [320, 480]]) {
   t = await p.textContent('.last'); assert.match(t, /24kg × 7회/); ok('LAST: set 2 bar shows set 2 of last time (24kg × 7), not set 1');
   assert.equal(await p.inputValue('[data-c=wInput]'), '20'); ok('LAST: weight still follows the set just done (20); last time shown alongside for comparison');
   await p.click('[data-a=selSet][data-id="3"]'); assert.match(await p.textContent('.last'), /24kg × 7회/); ok('LAST: extra sets beyond last time compare with last time\'s final set');
+  await ctx.close();
+}
+// ---- 11. abs add-on session: own section, outside rotation, appended in one tap, migration for old installs
+{
+  const ctx = await b.newContext(devices['iPhone 14']); const p = await ctx.newPage(); p.on('pageerror', (e) => errs.push(e.message));
+  // an "old install" without the abs items/flag
+  await p.goto(U); await p.waitForSelector('nav');
+  await p.evaluate(() => { const d = JSON.parse(localStorage.getItem('pp:v1')); delete d.routines['r-abs']; d.routineOrder = d.routineOrder.filter((x) => x !== 'r-abs'); for (const id of ['hanging-leg-raise', 'ab-wheel-rollout', 'reverse-crunch']) delete d.exercises[id]; delete d.meta.absV11; localStorage.setItem('pp:v1', JSON.stringify(d)); });
+  await p.reload(); await p.waitForSelector('nav');
+  const st = await p.evaluate(() => window.__pp.S);
+  assert.ok(st.routines['r-abs']?.addon && st.exercises['ab-wheel-rollout']); ok('ABS: existing installs get the Abs add-on routine once (migration)');
+  assert.match(await p.textContent('main'), /추가 세션/); assert.equal(await p.locator('.row.routine.addon').count(), 1); ok('ABS: Today shows it in its own "추가 세션" section');
+  await p.evaluate(() => { const S = window.__pp.S; delete S.routines['r-abs']; S.routineOrder = S.routineOrder.filter((x) => x !== 'r-abs'); localStorage.setItem('pp:v1', JSON.stringify(S)); });
+  await p.reload(); await p.waitForSelector('nav'); assert.equal(await p.evaluate(() => !!window.__pp.S.routines['r-abs']), false); ok('ABS: deleting it sticks (not re-added on next launch)');
+  await p.click('[data-a=tab][data-id=settings]'); await p.click('[data-a=restoreDef]'); await p.click('[data-a=tab][data-id=today]');
+  // push day -> finish all sets of the last exercise -> "Abs 세션 추가"
+  await p.click('[data-a=openStart][data-id="r-push"]'); await p.click('[data-a=doStart]'); await p.waitForSelector('.panel');
+  const n0 = await p.evaluate(() => window.__pp.S.sessions.at(-1).exercises.length);
+  await p.click('[data-a=openExList]'); await p.click('.sheetbox [data-a=addAddon][data-id="r-abs"]');
+  const s1 = await p.evaluate(() => window.__pp.S.sessions.at(-1));
+  assert.equal(s1.exercises.length, n0 + 4); assert.equal(s1.exercises[n0].exerciseId, 'cable-crunch'); assert.equal(s1.curEx, n0); ok('ABS: one tap appends 4 abs exercises and jumps to the first one');
+  await p.click('[data-a=openExList]'); assert.equal(await p.locator('.sheetbox [data-a=addAddon]').count(), 0); ok('ABS: cannot be added twice to the same workout'); await p.keyboard.press('Escape');
+  await p.click('[data-a=exitWorkout]'); assert.match(await p.textContent('.row.routine.addon'), /진행 중인 운동에 추가/); ok('ABS: during a workout the Today card offers "진행 중인 운동에 추가"');
+  await p.click('[data-a=resume]'); await p.fill('[data-c=wInput]', '30'); await p.dispatchEvent('[data-c=wInput]', 'change'); await p.click('[data-a=complete]'); await p.click('[data-a=tStop]');
+  await p.click('[data-a=openFinish]'); await p.click('[data-a=doFinish]'); await p.keyboard.press('Escape');
+  assert.equal(await p.evaluate(() => window.__pp.S.routineOrder.filter((id) => !window.__pp.S.routines[id].addon).length), 4);
+  assert.match(await p.textContent('.row.routine.next'), /Pull Day/); ok('ABS: rotation ignores add-on sessions (after Push comes Pull)');
+  await p.click('[data-a=openStart][data-id="r-abs"]'); await p.click('[data-a=doStart]'); await p.waitForSelector('.panel'); ok('ABS: can also be done on its own');
   await ctx.close();
 }
 await b.close(); srv.close();

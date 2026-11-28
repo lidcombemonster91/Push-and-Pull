@@ -119,6 +119,10 @@ export const DEFAULT_EXERCISES = [
   X('lying-leg-curl', '라잉 레그 컬', 'Lying Leg Curl', { p: ['햄스트링'], eq: '머신', mode: 'machine', n: 3, r: [10, 12], rest: 60, inc: 2.5, kind: 'iso', setup: '패드를 종아리 아래쪽에 맞춥니다.', form: '엉덩이가 뜨지 않게 말아 올립니다.', mis: '엉덩이 들림' }),
   X('hip-thrust', '힙 쓰러스트', 'Hip Thrust', { p: ['둔근'], s: ['햄스트링'], eq: '바벨', mode: 'total', n: 3, r: [8, 12], rest: 90, inc: 5, kind: 'legs', setup: '벤치에 어깨뼈 하단을 기대고 바를 골반 위에.', form: '턱을 당기고 엉덩이를 완전히 수축합니다.', mis: '허리 과신전' }),
   X('seated-calf-raise', '시티드 카프 레이즈', 'Seated Calf Raise', { p: ['종아리'], eq: '머신', mode: 'machine', n: 3, r: [12, 15], rest: 60, inc: 2.5, kind: 'iso', setup: '무릎 패드를 허벅지 위에 고정.', form: '끝까지 내렸다 최대한 올립니다.', mis: '반동' }),
+  // Abs (add-on session)
+  X('hanging-leg-raise', '행잉 레그 레이즈', 'Hanging Leg Raise', { p: ['복근'], eq: '맨몸', mode: 'bodyweight', n: 3, r: [10, 15], rest: 60, inc: 2.5, kind: 'iso', setup: '바에 어깨너비로 매달려 어깨를 살짝 끌어내립니다.', form: '골반을 말아 올리듯 다리를 들어 올리고, 흔들림 없이 천천히 내립니다.', mis: '몸을 흔들어 반동 · 다리만 들고 골반은 그대로' }),
+  X('ab-wheel-rollout', '앱 롤아웃', 'Ab Wheel Rollout', { p: ['복근'], eq: '기타', mode: 'bodyweight', n: 3, r: [8, 12], rest: 60, inc: 2.5, kind: 'iso', setup: '무릎을 매트에 대고 휠을 어깨 아래에 둡니다.', form: '복부를 조여 허리가 꺾이지 않는 범위까지 굴려 나갔다 복근 힘으로 돌아옵니다.', mis: '허리가 처짐 · 엉덩이로 당겨 돌아옴' }),
+  X('reverse-crunch', '리버스 크런치', 'Reverse Crunch', { p: ['복근'], eq: '맨몸', mode: 'bodyweight', n: 2, r: [12, 15], rest: 45, inc: 2.5, kind: 'iso', setup: '바닥에 누워 무릎을 90°로 들고 손은 몸 옆에 둡니다.', form: '골반을 바닥에서 말아 올려 무릎을 가슴 쪽으로 가져오고 천천히 내립니다.', mis: '다리를 던지듯 반동 · 목에 힘 줌' }),
   X('walking-lunge', '워킹 런지', 'Walking Lunge', { p: ['대퇴사두', '둔근'], eq: '덤벨', mode: 'perHand', n: 3, r: [10, 12], rest: 90, inc: 2, kind: 'legs', setup: '덤벨을 양손에 들고 곧게 섭니다.', form: '보폭을 크게, 뒷무릎이 바닥에 닿기 직전까지.', mis: '상체 숙임 · 보폭이 짧음' }),
 ];
 
@@ -137,6 +141,10 @@ export const DEFAULT_ROUTINES = [
     item('leg-press', 3, 10, 12, 120), item('machine-chest-press', 3, 10, 12, 90), item('lat-pulldown', 3, 8, 12, 90),
     item('romanian-deadlift', 3, 8, 10, 120), item('shoulder-press', 2, 8, 12, 90), item('seated-cable-row', 2, 10, 12, 75), item('cable-crunch', 2, 12, 15, 60)] },
 ];
+
+export const ADDON_ROUTINES = ['r-abs'];
+DEFAULT_ROUTINES.push({ id: 'r-abs', name: 'Abs', desc: '복근 · 추가 세션', addon: true, items: [
+  item('cable-crunch', 3, 12, 15, 60), item('hanging-leg-raise', 3, 10, 15, 60), item('ab-wheel-rollout', 3, 8, 12, 60), item('reverse-crunch', 2, 12, 15, 45)] });
 
 export const MUSCLES = ['가슴', '등', '어깨', '후면삼각근', '이두', '삼두', '전완', '대퇴사두', '햄스트링', '둔근', '종아리', '복근'];
 export const EQUIPMENT = ['덤벨', '바벨', '머신', '케이블', '맨몸', '기타'];

@@ -37,9 +37,9 @@ async function runWorkout(setsPerExercise) { // complete all sets for every exer
 await page.goto(URL_); await page.waitForSelector('nav');
 console.log('Phase 1 flow');
 assert.equal(await page.locator('nav button').count(), 5); ok('5-tab bottom nav (Today/Routines/History/Progress/Settings)');
-assert.equal(await page.locator('.row.routine').count(), 4); ok('4 default routines on Today');
+assert.equal(await page.locator('.row.routine:not(.addon)').count(), 4); ok('4 default routines on Today');
 let st = await S();
-assert.equal(st.routineOrder.length, 4);
+assert.equal(st.routineOrder.length, 5); assert.equal(st.routines['r-abs'].addon, true); ok('Abs add-on routine seeded (5 routines total)');
 const push = st.routines['r-push'];
 assert.deepEqual(push.items.map((i) => [i.exerciseId, i.sets, i.repMin, i.repMax, i.rest]), [
   ['incline-db-press', 4, 8, 10, 120], ['machine-chest-press', 3, 10, 12, 90], ['cable-fly', 3, 12, 15, 60], ['shoulder-press', 3, 8, 12, 90], ['lateral-raise', 4, 12, 15, 60], ['rope-pushdown', 3, 10, 15, 60], ['overhead-cable-ext', 3, 12, 15, 60]]); ok('Push default data matches spec');
@@ -207,7 +207,7 @@ assert.match(await toastText(), /근육/); await page.click('[data-a=togMuscle][
 st = await S(); const cx = Object.values(st.exercises).find((e) => e.name === 'Smith Bench'); assert.ok(cx && cx.custom); assert.equal(st.routines['r-push'].items.at(-1).exerciseId, cx.id); ok('custom exercise created and added to routine');
 const hist = st.sessions.find((x) => x.status === 'done');
 assert.equal(hist.routineName, 'Push Day'); assert.equal(hist.exercises.length, 8); ok('past sessions unchanged by routine/exercise edits (snapshots)');
-await A('delRoutine'); await A('confirmOk'); assert.equal((await S()).routineOrder.length, 3); ok('delete routine; history intact'); assert.equal((await S()).sessions.filter((s) => s.status === 'done').length, 3);
+await A('delRoutine'); await A('confirmOk'); assert.equal((await S()).routineOrder.length, 4); ok('delete routine; history intact'); assert.equal((await S()).sessions.filter((s) => s.status === 'done').length, 3);
 
 // ---- history / progress
 await A('tab', 'history'); assert.equal(await page.locator('.list .row').count(), 3); ok('history lists finished sessions');
@@ -232,9 +232,9 @@ assert.equal(bj.app, 'push-and-pull'); assert.equal(bj.data.sessions.filter((s) 
 const [dl2] = await Promise.all([page.waitForEvent('download'), A('exportCsv')]);
 await dl2.saveAs('/tmp/pp.csv'); const csv = fs.readFileSync('/tmp/pp.csv', 'utf8'); assert.ok(csv.includes('Incline Dumbbell Press') && csv.split('\r\n').length > 20); ok('CSV export');
 await A('resetAll'); await A('confirmOk'); await A('confirmOk');
-st = await S(); assert.equal(st.sessions.length, 0); assert.equal(st.routineOrder.length, 4); ok('reset all (double confirm) restores defaults');
+st = await S(); assert.equal(st.sessions.length, 0); assert.equal(st.routineOrder.length, 5); ok('reset all (double confirm) restores defaults');
 await A('tab', 'settings'); await page.setInputFiles('#file', jsonPath); await page.waitForSelector('[data-a=confirmOk]'); await A('confirmOk');
-st = await S(); assert.equal(st.sessions.filter((s) => s.status === 'done').length, 3); assert.equal(st.routineOrder.length, 3); assert.ok(!st.routines['r-push']); ok('restore JSON backup (sessions + routine changes exactly as backed up)');
+st = await S(); assert.equal(st.sessions.filter((s) => s.status === 'done').length, 3); assert.equal(st.routineOrder.length, 4); assert.ok(!st.routines['r-push']); ok('restore JSON backup (sessions + routine changes exactly as backed up)');
 fs.writeFileSync('/tmp/bad.json', '{"app":"other"}'); await A('tab', 'settings'); await page.setInputFiles('#file', '/tmp/bad.json'); await page.waitForTimeout(200);
 assert.match(await toastText(), /백업 파일이 아닙니다/); assert.equal((await S()).sessions.filter((s) => s.status === 'done').length, 3); ok('invalid backup rejected, data untouched');
 fs.writeFileSync('/tmp/bad2.json', 'not json'); await page.setInputFiles('#file', '/tmp/bad2.json'); await page.waitForTimeout(200); assert.match(await toastText(), /JSON/); ok('non-JSON file rejected');
@@ -246,7 +246,7 @@ assert.ok(await page.evaluate(() => Object.keys(localStorage).some((k) => k.star
 
 // ---- offline
 await page.evaluate(() => navigator.serviceWorker.ready); await page.reload(); await page.waitForTimeout(500);
-await ctx.setOffline(true); await page.reload(); await page.waitForSelector('nav'); assert.equal(await page.locator('.row.routine').count(), 4); ok('works offline (service worker cache)');
+await ctx.setOffline(true); await page.reload(); await page.waitForSelector('nav'); assert.equal(await page.locator('.row.routine:not(.addon)').count(), 4); ok('works offline (service worker cache)');
 await ctx.setOffline(false);
 assert.ok((await (await page.request.get(URL_ + 'manifest.webmanifest')).json()).display === 'standalone'); ok('PWA manifest');
 
